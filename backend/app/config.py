@@ -1,0 +1,32 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parent.parent / ".env"),
+        env_file_encoding="utf-8",
+    )
+
+    app_name: str = "Telecom FAQ Semantic Search API"
+    app_env: str = "development"
+    api_prefix: str = "/api"
+    database_url: str
+    frontend_origin: str = "http://localhost:3000"
+
+    embedding_backend: str = "transformers"
+    embedding_model_name: str = "EuroBERT/EuroBERT-210m"
+    embedding_dim: int = 768
+    similarity_threshold: float = Field(default=0.72, ge=0.0, le=1.0)
+    fallback_message: str = (
+        "Точный ответ не найден. Мы передали запрос оператору поддержки."
+    )
+    seed_faq_path: str = "../data/faqs.json"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
