@@ -1,0 +1,434 @@
+[
+  {
+    "question": "У меня дома перестал работать интернет",
+    "expected_status": "matched",
+    "expected_faq_id": 1,
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Роутер включен а интернета нет",
+    "expected_status": "matched",
+    "expected_faq_id": 1,
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Интернета нету дома",
+    "expected_status": "matched",
+    "expected_faq_id": 1,
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "инет дома отвалился",
+    "expected_status": "matched",
+    "expected_faq_id": 1,
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "Как провести интернет в квартиру",
+    "expected_status": "matched",
+    "expected_faq_id": 2,
+    "expected_canonical_question": "Как подключить домашний интернет?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Хочу дом инет",
+    "expected_status": "matched",
+    "expected_faq_id": 2,
+    "expected_canonical_question": "Как подключить домашний интернет?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "Можно подключить интернет по адресу?",
+    "expected_status": "matched",
+    "expected_faq_id": 2,
+    "expected_canonical_question": "Как подключить домашний интернет?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "оставить заявку на интернет домой",
+    "expected_status": "matched",
+    "expected_faq_id": 2,
+    "expected_canonical_question": "Как подключить домашний интернет?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "Не могу зайти в лк",
+    "expected_status": "matched",
+    "expected_faq_id": 3,
+    "expected_canonical_question": "Как войти в личный кабинет и восстановить доступ?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "Забыл пароль от личного кабинета",
+    "expected_status": "matched",
+    "expected_faq_id": 3,
+    "expected_canonical_question": "Как войти в личный кабинет и восстановить доступ?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "как попасть в личную кабину",
+    "expected_status": "matched",
+    "expected_faq_id": 3,
+    "expected_canonical_question": "Как войти в личный кабинет и восстановить доступ?",
+    "case_type": "typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "не магу зайти в лк",
+    "expected_status": "matched",
+    "expected_faq_id": 3,
+    "expected_canonical_question": "Как войти в личный кабинет и восстановить доступ?",
+    "case_type": "typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "Как поменять тариф на симке",
+    "expected_status": "matched",
+    "expected_faq_id": 4,
+    "expected_canonical_question": "Как сменить тариф на мобильную связь?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "хочу новый тариф на мобиле",
+    "expected_status": "matched",
+    "expected_faq_id": 4,
+    "expected_canonical_question": "Как сменить тариф на мобильную связь?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "поменять тарифчик",
+    "expected_status": "matched",
+    "expected_faq_id": 4,
+    "expected_canonical_question": "Как сменить тариф на мобильную связь?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "сменить тариф в лк",
+    "expected_status": "matched",
+    "expected_faq_id": 4,
+    "expected_canonical_question": "Как сменить тариф на мобильную связь?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "Как оплатить интернет и телефон",
+    "expected_status": "matched",
+    "expected_faq_id": 5,
+    "expected_canonical_question": "Как оплатить услуги связи?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "пополнить балансик",
+    "expected_status": "matched",
+    "expected_faq_id": 5,
+    "expected_canonical_question": "Как оплатить услуги связи?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "как кинуть деньги на связь",
+    "expected_status": "matched",
+    "expected_faq_id": 5,
+    "expected_canonical_question": "Как оплатить услуги связи?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "не получается заплатить за интернет",
+    "expected_status": "matched",
+    "expected_faq_id": 5,
+    "expected_canonical_question": "Как оплатить услуги связи?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "баланс",
+    "expected_status": "matched",
+    "expected_faq_id": 6,
+    "expected_canonical_question": "Как узнать баланс по номеру?",
+    "case_type": "short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Сколько денег осталось на счете",
+    "expected_status": "matched",
+    "expected_faq_id": 6,
+    "expected_canonical_question": "Как узнать баланс по номеру?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "как глянуть баланс",
+    "expected_status": "matched",
+    "expected_faq_id": 6,
+    "expected_canonical_question": "Как узнать баланс по номеру?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "балансик посмотреть",
+    "expected_status": "matched",
+    "expected_faq_id": 6,
+    "expected_canonical_question": "Как узнать баланс по номеру?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "сколько гб осталось",
+    "expected_status": "matched",
+    "expected_faq_id": 7,
+    "expected_canonical_question": "Как узнать остаток пакета интернета и минут?",
+    "case_type": "short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "остаток трафика по номеру",
+    "expected_status": "matched",
+    "expected_faq_id": 7,
+    "expected_canonical_question": "Как узнать остаток пакета интернета и минут?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "пакет минут проверить",
+    "expected_status": "matched",
+    "expected_faq_id": 7,
+    "expected_canonical_question": "Как узнать остаток пакета интернета и минут?",
+    "case_type": "short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "где посмотреть остаток гигов",
+    "expected_status": "matched",
+    "expected_faq_id": 7,
+    "expected_canonical_question": "Как узнать остаток пакета интернета и минут?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "мобила плохо ловит",
+    "expected_status": "matched",
+    "expected_faq_id": 8,
+    "expected_canonical_question": "Почему плохо ловит мобильная сеть?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "связь тупит в квартире",
+    "expected_status": "matched",
+    "expected_faq_id": 8,
+    "expected_canonical_question": "Почему плохо ловит мобильная сеть?",
+    "case_type": "typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "почти нет сигнала на телефоне",
+    "expected_status": "matched",
+    "expected_faq_id": 8,
+    "expected_canonical_question": "Почему плохо ловит мобильная сеть?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "плоха ловит сеть",
+    "expected_status": "matched",
+    "expected_faq_id": 8,
+    "expected_canonical_question": "Почему плохо ловит мобильная сеть?",
+    "case_type": "typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "подключить роум",
+    "expected_status": "matched",
+    "expected_faq_id": 9,
+    "expected_canonical_question": "Как подключить роуминг?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "роуминк подключить",
+    "expected_status": "matched",
+    "expected_faq_id": 9,
+    "expected_canonical_question": "Как подключить роуминг?",
+    "case_type": "typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "как включить интернет за границей",
+    "expected_status": "matched",
+    "expected_faq_id": 9,
+    "expected_canonical_question": "Как подключить роуминг?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "нужен роуминг на симку",
+    "expected_status": "matched",
+    "expected_faq_id": 9,
+    "expected_canonical_question": "Как подключить роуминг?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "номер отключили за долг",
+    "expected_status": "matched",
+    "expected_faq_id": 10,
+    "expected_canonical_question": "Как разблокировать номер после неоплаты?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "после оплаты связь не вернулась",
+    "expected_status": "matched",
+    "expected_faq_id": 10,
+    "expected_canonical_question": "Как разблокировать номер после неоплаты?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "разблокировать симку после минуса",
+    "expected_status": "matched",
+    "expected_faq_id": 10,
+    "expected_canonical_question": "Как разблокировать номер после неоплаты?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "как вернуть номер после блокировки",
+    "expected_status": "matched",
+    "expected_faq_id": 10,
+    "expected_canonical_question": "Как разблокировать номер после неоплаты?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "потеряна симка",
+    "expected_status": "matched",
+    "expected_faq_id": 11,
+    "expected_canonical_question": "Что делать, если потеряна SIM-карта?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "симку украли",
+    "expected_status": "matched",
+    "expected_faq_id": 11,
+    "expected_canonical_question": "Что делать, если потеряна SIM-карта?",
+    "case_type": "colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "где перевыпустить сим карту",
+    "expected_status": "matched",
+    "expected_faq_id": 11,
+    "expected_canonical_question": "Что делать, если потеряна SIM-карта?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "нужно восстановить сим карту",
+    "expected_status": "matched",
+    "expected_faq_id": 11,
+    "expected_canonical_question": "Что делать, если потеряна SIM-карта?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "есим",
+    "expected_status": "matched",
+    "expected_faq_id": 12,
+    "expected_canonical_question": "Как подключить или перенести eSIM?",
+    "case_type": "short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "как подключить есим",
+    "expected_status": "matched",
+    "expected_faq_id": 12,
+    "expected_canonical_question": "Как подключить или перенести eSIM?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "перенос на e sim",
+    "expected_status": "matched",
+    "expected_faq_id": 12,
+    "expected_canonical_question": "Как подключить или перенести eSIM?",
+    "case_type": "abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "оформить esim на номер",
+    "expected_status": "matched",
+    "expected_faq_id": 12,
+    "expected_canonical_question": "Как подключить или перенести eSIM?",
+    "case_type": "core",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Какая сегодня погода?",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "irrelevant",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Когда выйдет новый айфон",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "irrelevant",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Посоветуй фильм на вечер",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "irrelevant",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Хочу поговорить с живым оператором прямо сейчас",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "near_miss",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "У меня что-то не так со связью",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "near_miss",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "Помогите разобраться с услугами",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "near_miss",
+    "normalization_sensitive": false
+  }
+]

@@ -3,15 +3,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
 
 from .api import admin, public
 from .config import get_settings
 from .db import SessionLocal, init_db
 from .embeddings import EmbedderManager, EmbedderUnavailableError
-from .models import FAQ
 from .schemas import HealthResponse
-from .seed import load_seed_dataset
+from .seed import bootstrap_faqs, load_seed_dataset
 
 
 settings = get_settings()
@@ -24,19 +22,7 @@ async def lifespan(app: FastAPI):
     embedder_manager.warmup()
     if embedder_manager.state.ready:
         with SessionLocal() as session:
-            has_rows = session.scalar(select(FAQ.id).limit(1)) is not None
-            if not has_rows:
-                for entry in load_seed_dataset():
-                    question = entry["question"].strip()
-                    session.add(
-                        FAQ(
-                            question=question,
-                            answer=entry["answer"].strip(),
-                            embedding=embedder_manager.embed(question),
-                            is_active=True,
-                        )
-                    )
-                session.commit()
+            bootstrap_faqs(session, embedder_manager, load_seed_dataset())
     app.state.embedder_manager = embedder_manager
     yield
 

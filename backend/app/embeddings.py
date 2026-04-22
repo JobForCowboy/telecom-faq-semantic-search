@@ -88,11 +88,18 @@ class TransformersEmbedder(BaseEmbedder):
 
         vectors = normalized.cpu().numpy().tolist()
         actual_dim = len(vectors[0]) if vectors else 0
-        if actual_dim != self.expected_dim:
+        if actual_dim > self.expected_dim:
             raise EmbedderUnavailableError(
-                f"Expected embedding dimension {self.expected_dim}, got {actual_dim}"
+                f"Expected embedding dimension <= {self.expected_dim}, got {actual_dim}"
             )
-        return vectors
+        if actual_dim == self.expected_dim:
+            return vectors
+
+        padded_vectors: list[list[float]] = []
+        padding = self.expected_dim - actual_dim
+        for vector in vectors:
+            padded_vectors.append([*vector, *([0.0] * padding)])
+        return padded_vectors
 
 
 @dataclass
@@ -141,4 +148,3 @@ class EmbedderManager:
             raise EmbedderUnavailableError(self.state.detail or "Embedding backend is not ready.")
 
         return self.get_embedder().embed([text])[0]
-

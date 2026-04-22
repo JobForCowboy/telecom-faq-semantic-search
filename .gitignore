@@ -17,4 +17,4 @@ coverage/
 .DS_Store
 postgres-data/
 *.log
-
+reports/

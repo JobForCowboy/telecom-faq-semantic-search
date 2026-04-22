@@ -18,13 +18,13 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:3000"
 
     embedding_backend: str = "transformers"
-    embedding_model_name: str = "EuroBERT/EuroBERT-210m"
+    embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     embedding_dim: int = 768
     similarity_threshold: float = Field(default=0.72, ge=0.0, le=1.0)
     fallback_message: str = (
         "Точный ответ не найден. Мы передали запрос оператору поддержки."
     )
-    seed_faq_path: str = "../data/faqs.json"
+    seed_faq_path: str = "../data/kb/faqs.json"
 
 
 @lru_cache

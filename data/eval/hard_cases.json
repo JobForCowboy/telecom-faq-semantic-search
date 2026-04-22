@@ -1,0 +1,146 @@
+[
+  {
+    "question": "лк",
+    "expected_status": "matched",
+    "expected_faq_id": 3,
+    "expected_canonical_question": "Как войти в личный кабинет и восстановить доступ?",
+    "case_type": "hard_short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "личная кабина",
+    "expected_status": "matched",
+    "expected_faq_id": 3,
+    "expected_canonical_question": "Как войти в личный кабинет и восстановить доступ?",
+    "case_type": "hard_typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "не магу зайти в личную кабину",
+    "expected_status": "matched",
+    "expected_faq_id": 3,
+    "expected_canonical_question": "Как войти в личный кабинет и восстановить доступ?",
+    "case_type": "hard_typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "инет",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "hard_short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "инета нет",
+    "expected_status": "matched",
+    "expected_faq_id": 1,
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "hard_abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "интернета нету",
+    "expected_status": "matched",
+    "expected_faq_id": 1,
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "hard_typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "мобила",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "hard_short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "мобила плохо ловит",
+    "expected_status": "matched",
+    "expected_faq_id": 8,
+    "expected_canonical_question": "Почему плохо ловит мобильная сеть?",
+    "case_type": "hard_abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "связь тупит",
+    "expected_status": "matched",
+    "expected_faq_id": 8,
+    "expected_canonical_question": "Почему плохо ловит мобильная сеть?",
+    "case_type": "hard_colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "балансик",
+    "expected_status": "matched",
+    "expected_faq_id": 6,
+    "expected_canonical_question": "Как узнать баланс по номеру?",
+    "case_type": "hard_short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "тариф",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "hard_short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "тарифчик поменять",
+    "expected_status": "matched",
+    "expected_faq_id": 4,
+    "expected_canonical_question": "Как сменить тариф на мобильную связь?",
+    "case_type": "hard_abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "есимка",
+    "expected_status": "matched",
+    "expected_faq_id": 12,
+    "expected_canonical_question": "Как подключить или перенести eSIM?",
+    "case_type": "hard_typo",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "e sim",
+    "expected_status": "matched",
+    "expected_faq_id": 12,
+    "expected_canonical_question": "Как подключить или перенести eSIM?",
+    "case_type": "hard_abbreviation",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "роум",
+    "expected_status": "matched",
+    "expected_faq_id": 9,
+    "expected_canonical_question": "Как подключить роуминг?",
+    "case_type": "hard_short",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "симка потерялась",
+    "expected_status": "matched",
+    "expected_faq_id": 11,
+    "expected_canonical_question": "Что делать, если потеряна SIM-карта?",
+    "case_type": "hard_colloquial",
+    "normalization_sensitive": true
+  },
+  {
+    "question": "разберитесь со связью срочно",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "hard_irrelevant",
+    "normalization_sensitive": false
+  },
+  {
+    "question": "оператор живой нужен",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "expected_canonical_question": null,
+    "case_type": "hard_irrelevant",
+    "normalization_sensitive": false
+  }
+]

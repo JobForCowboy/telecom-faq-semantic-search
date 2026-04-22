@@ -1,8 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from .deps import get_admin_service
-from ..schemas import EscalationResponse, FAQCreate, FAQResponse, FAQUpdate
+from .deps import get_admin_service, get_chat_service
+from ..schemas import (
+    ChatQueryRequest,
+    EscalationResponse,
+    FAQCreate,
+    FAQResponse,
+    FAQUpdate,
+    RetrievalDebugResponse,
+)
 from ..services.admin import AdminService
+from ..services.chat import ChatService
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -41,3 +49,10 @@ def delete_faq(faq_id: int, service: AdminService = Depends(get_admin_service)) 
 def list_escalations(service: AdminService = Depends(get_admin_service)) -> list[EscalationResponse]:
     return service.list_escalations()
 
+
+@router.post("/retrieval-debug", response_model=RetrievalDebugResponse)
+def retrieval_debug(
+    payload: ChatQueryRequest,
+    service: ChatService = Depends(get_chat_service),
+) -> RetrievalDebugResponse:
+    return service.preview_question(payload.question, top_k=3)

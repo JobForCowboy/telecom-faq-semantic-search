@@ -1,15 +1,30 @@
+export type RetrievalMatch = {
+  faq_id: number;
+  canonical_question: string;
+  matched_question: string;
+  score: number;
+};
+
 export type ChatResponse = {
-  status: "matched" | "fallback";
+  status: "matched" | "escalated";
   answer: string;
-  similarity_score: number | null;
+  score: number | null;
   matched_faq_id: number | null;
   matched_question: string | null;
+  top_matches: RetrievalMatch[];
+};
+
+export type RetrievalDebugResponse = ChatResponse & {
+  original_question: string;
+  normalized_question: string;
+  threshold: number;
 };
 
 export type FAQItem = {
   id: number;
-  question: string;
+  canonical_question: string;
   answer: string;
+  variants: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string | null;
@@ -18,14 +33,18 @@ export type FAQItem = {
 export type EscalationItem = {
   id: number;
   question_text: string;
+  normalized_question_text: string;
   response_text: string;
-  similarity_score: number | null;
+  score: number | null;
+  matched_faq_id: number | null;
+  matched_canonical_question: string | null;
   created_at: string;
 };
 
 type FAQPayload = {
-  question: string;
+  canonical_question: string;
   answer: string;
+  variants: string[];
   is_active: boolean;
 };
 
@@ -90,4 +109,11 @@ export function deleteFaq(faqId: number) {
 
 export function fetchEscalations() {
   return apiFetch<EscalationItem[]>("/api/admin/escalations");
+}
+
+export function previewRetrieval(question: string) {
+  return apiFetch<RetrievalDebugResponse>("/api/admin/retrieval-debug", {
+    method: "POST",
+    body: JSON.stringify({ question })
+  });
 }
