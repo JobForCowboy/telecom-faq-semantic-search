@@ -58,6 +58,15 @@ button {
   padding: 24px 0 40px;
 }
 
+.demoShell {
+  width: min(860px, calc(100% - 32px));
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 18px;
+  padding-bottom: 24px;
+}
+
 .adminAppShell {
   width: min(1280px, calc(100% - 32px));
 }
@@ -75,14 +84,38 @@ button {
   backdrop-filter: blur(18px);
 }
 
+.demoTopBar {
+  padding: 16px 20px;
+}
+
 .adminTopBar {
   align-items: center;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .pageTitle {
   margin: 6px 0 0;
   font-size: clamp(1.45rem, 2vw, 2rem);
   letter-spacing: -0.04em;
+}
+
+.paneTitle {
+  margin: 8px 0 0;
+  font-size: 1.18rem;
+  letter-spacing: -0.03em;
+}
+
+.paneSubtitle {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 .pageIntro {
@@ -113,6 +146,95 @@ button {
   background: linear-gradient(180deg, var(--panel), var(--panel-strong));
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
+}
+
+.desktopOnly {
+  display: block;
+}
+
+.mobileOnly {
+  display: none;
+}
+
+.demoGrid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.chatPanel {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 22px;
+}
+
+.chatPane,
+.explainPane,
+.explainPaneMobile {
+  min-height: 0;
+  padding: 22px;
+}
+
+.chatPane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 16px;
+}
+
+.chatPaneHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chatPaneBody {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: 16px;
+}
+
+.chatTranscriptFrame {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.explainPane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px;
+}
+
+.explainPaneBody {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.explainPaneMobile {
+  margin-top: 0;
+}
+
+.explainPaneSummary {
+  cursor: pointer;
+  color: var(--text-main);
+  font-weight: 600;
+  list-style: none;
+}
+
+.explainPaneSummary::-webkit-details-marker {
+  display: none;
 }
 
 .inputCard,
@@ -185,6 +307,7 @@ button {
 }
 
 .queryForm textarea,
+.queryForm input,
 .modalForm textarea,
 .modalForm input {
   width: 100%;
@@ -198,6 +321,7 @@ button {
 }
 
 .queryForm textarea:focus,
+.queryForm input:focus,
 .modalForm textarea:focus,
 .modalForm input:focus {
   border-color: rgba(55, 200, 122, 0.42);
@@ -292,6 +416,29 @@ button {
   margin-top: 18px;
 }
 
+.quickReplySection {
+  display: grid;
+  gap: 10px;
+  padding-top: 2px;
+}
+
+.quickReplyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.conversationMeta {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
 .chipWrap {
   display: flex;
   flex-wrap: wrap;
@@ -299,9 +446,32 @@ button {
   margin-top: 10px;
 }
 
+.quickReplyWrap {
+  margin-top: 0;
+}
+
 .suggestionChip {
   padding: 10px 14px;
   text-align: left;
+}
+
+.quickReplyChip {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.quickReplyChip-clarification {
+  border-color: rgba(55, 200, 122, 0.32);
+  background: rgba(55, 200, 122, 0.12);
+}
+
+.quickReplyChip-followup {
+  border-color: rgba(178, 224, 200, 0.2);
+}
+
+.quickReplyChip-intent_hypothesis,
+.quickReplyChip-fallback {
+  border-color: rgba(216, 177, 93, 0.24);
+  background: rgba(216, 177, 93, 0.08);
 }
 
 .resultState {
@@ -313,6 +483,10 @@ button {
 .resultState.empty {
   min-height: 280px;
   align-content: center;
+}
+
+.resultState.compact {
+  margin-top: 14px;
 }
 
 .contextBlock,
@@ -334,10 +508,95 @@ button {
   line-height: 1.6;
 }
 
+.chatTranscript {
+  display: grid;
+  gap: 14px;
+  margin-top: 0;
+}
+
+.chatTranscriptViewport {
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
+  align-content: start;
+}
+
+.chatEmptyState {
+  min-height: 0;
+  padding: 4px 0;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  max-width: 540px;
+}
+
+.chatEmptyState p {
+  margin: 0;
+}
+
+.emptyStateChips {
+  margin-top: 2px;
+}
+
+.chatBubble {
+  max-width: 92%;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.chatBubble.user {
+  justify-self: end;
+  background: rgba(55, 200, 122, 0.12);
+  border-color: rgba(55, 200, 122, 0.22);
+}
+
+.chatBubble.assistant {
+  justify-self: start;
+}
+
+.chatBubble.pending {
+  opacity: 0.74;
+}
+
+.chatBubble p {
+  margin: 8px 0 0;
+  line-height: 1.55;
+}
+
+.messageStatusBadge {
+  width: fit-content;
+}
+
+.inlineStatusCard {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.inlineStatusCard p {
+  margin: 0;
+}
+
+.inlineStatusCard p + p {
+  margin-top: 6px;
+}
+
 .metaGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.chatMetaGrid {
+  margin-top: 14px;
+}
+
+.explainMetaGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .metaItem {
@@ -363,6 +622,62 @@ button {
 
 .metaItem.wide {
   grid-column: 1 / -1;
+}
+
+.detailSection {
+  display: grid;
+  gap: 12px;
+}
+
+.detailSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detailStack,
+.hypothesisList {
+  display: grid;
+  gap: 12px;
+}
+
+.hypothesisCard {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.hypothesisHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hypothesisCard strong {
+  font-size: 0.96rem;
+  line-height: 1.45;
+}
+
+.hypothesisCard p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.explainEmptyState {
+  padding: 6px 0;
+  color: var(--text-muted);
+}
+
+.explainEmptyState p {
+  margin: 0;
+}
+
+.explainEmptyState p + p {
+  margin-top: 8px;
 }
 
 .adminToolbar {
@@ -452,6 +767,95 @@ button {
   z-index: 20;
 }
 
+.debugDetails {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 14px 16px;
+}
+
+.debugSummary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 600;
+  list-style: none;
+}
+
+.debugSummary::-webkit-details-marker {
+  display: none;
+}
+
+.chatComposer {
+  display: grid;
+  gap: 12px;
+}
+
+.chatComposerFooter {
+  align-items: flex-end;
+}
+
+.chatComposerModule {
+  display: grid;
+  gap: 10px;
+}
+
+.composerCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(16, 26, 22, 0.96), rgba(9, 15, 12, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.composerTextarea {
+  width: 100%;
+  min-height: 108px;
+  max-height: 176px;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  padding: 0;
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+}
+
+.composerTextarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.composerCard:focus-within {
+  border-color: rgba(55, 200, 122, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 3px rgba(55, 200, 122, 0.12);
+}
+
+.composerActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.composerReset,
+.composerSend {
+  min-width: 140px;
+}
+
+.composerHint {
+  margin: 0;
+}
+
+.inlineError {
+  margin-bottom: 0;
+}
+
 .modalCard {
   width: min(720px, 100%);
   padding: 22px;
@@ -499,6 +903,19 @@ button {
 }
 
 @media (max-width: 960px) {
+  .demoShell {
+    width: min(100% - 24px, 100%);
+    min-height: auto;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+
+  .mobileOnly {
+    display: block;
+  }
+
   .workspaceGrid {
     grid-template-columns: 1fr;
   }
@@ -514,6 +931,11 @@ button {
   .statusBadge {
     width: fit-content;
   }
+
+  .chatPane,
+  .explainPaneMobile {
+    padding: 18px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -523,6 +945,9 @@ button {
     padding: 18px 0 28px;
   }
 
+  .chatPanel,
+  .chatPane,
+  .explainPaneMobile,
   .inputCard,
   .resultCard,
   .tableCard,
@@ -532,6 +957,16 @@ button {
 
   .metaGrid {
     grid-template-columns: 1fr;
+  }
+
+  .chatTranscriptViewport {
+    min-height: 260px;
+  }
+
+  .composerActions,
+  .chatPaneHeader {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .statsRow,
@@ -545,6 +980,11 @@ button {
   .primaryButton,
   .secondaryButton,
   .tableButton {
+    width: 100%;
+  }
+
+  .composerReset,
+  .composerSend {
     width: 100%;
   }
 }

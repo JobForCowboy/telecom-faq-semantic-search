@@ -1,202 +1,349 @@
 "use client";
 
-import { FormEvent, useMemo, useState, useTransition } from "react";
-import { ChatResponse, queryChat } from "@/lib/api";
+import { FormEvent, useEffect, useRef, useState, useTransition } from "react";
+import { ChatResponse, QuickReply, queryChat, resetConversation } from "@/lib/api";
 
 const starterPrompts = [
   "инет дома не работает",
+  "не работает интернет",
   "не могу зайти в лк",
-  "как оплатить связь",
-  "мобила плохо ловит"
+  "как оплатить связь"
 ];
 
-function formatSimilarity(score: number | null) {
-  if (score === null) {
-    return "n/a";
-  }
+const CONVERSATION_ID_KEY = "telecom-faq-conversation-id";
+const LAST_RESPONSE_KEY = "telecom-faq-last-response";
+const MESSAGES_KEY = "telecom-faq-messages";
 
-  return `${Math.round(score * 100)}%`;
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  status?: ChatResponse["status"];
+};
+
+function formatStatus(status: ChatResponse["status"]) {
+  if (status === "matched") {
+    return "Готовый FAQ";
+  }
+  if (status === "clarification_required") {
+    return "Нужно уточнение";
+  }
+  return "Передано на эскалацию";
+}
+
+function buildAssistantMessage(response: ChatResponse): ChatMessage {
+  return {
+    id: `assistant-${response.conversation_message_count}-${Date.now()}`,
+    role: "assistant",
+    text: response.answer,
+    status: response.status
+  };
+}
+
+function buildUserMessage(question: string): ChatMessage {
+  return {
+    id: `user-${Date.now()}`,
+    role: "user",
+    text: question
+  };
+}
+
+function buildStarterReplies(): QuickReply[] {
+  return starterPrompts.map((prompt) => ({
+    type: "fallback",
+    label: prompt,
+    value: prompt
+  }));
 }
 
 export function ChatShell() {
   const [question, setQuestion] = useState("");
-  const [latestQuestion, setLatestQuestion] = useState<string | null>(null);
-  const [result, setResult] = useState<ChatResponse | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [lastResponse, setLastResponse] = useState<ChatResponse | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
 
-  const canSubmit = question.trim().length >= 3 && !isPending;
-  const suggestionChips = useMemo(
-    () =>
-      starterPrompts.map((prompt) => (
-        <button
-          className="suggestionChip"
-          key={prompt}
-          onClick={() => setQuestion(prompt)}
-          type="button"
-        >
-          {prompt}
-        </button>
-      )),
-    []
-  );
+  useEffect(() => {
+    const storedConversationId = window.sessionStorage.getItem(CONVERSATION_ID_KEY);
+    const storedMessages = window.sessionStorage.getItem(MESSAGES_KEY);
+    const storedLastResponse = window.sessionStorage.getItem(LAST_RESPONSE_KEY);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmed = question.trim();
-    if (!trimmed) {
+    if (storedConversationId) {
+      setConversationId(storedConversationId);
+    }
+    if (storedMessages) {
+      try {
+        const parsed = JSON.parse(storedMessages) as ChatMessage[];
+        setMessages(parsed);
+      } catch {
+        window.sessionStorage.removeItem(MESSAGES_KEY);
+      }
+    }
+    if (storedLastResponse) {
+      try {
+        const parsed = JSON.parse(storedLastResponse) as ChatResponse;
+        setLastResponse(parsed);
+      } catch {
+        window.sessionStorage.removeItem(LAST_RESPONSE_KEY);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (conversationId) {
+      window.sessionStorage.setItem(CONVERSATION_ID_KEY, conversationId);
+    } else {
+      window.sessionStorage.removeItem(CONVERSATION_ID_KEY);
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (messages.length) {
+      window.sessionStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+    } else {
+      window.sessionStorage.removeItem(MESSAGES_KEY);
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (lastResponse) {
+      window.sessionStorage.setItem(LAST_RESPONSE_KEY, JSON.stringify(lastResponse));
+    } else {
+      window.sessionStorage.removeItem(LAST_RESPONSE_KEY);
+    }
+  }, [lastResponse]);
+
+  useEffect(() => {
+    const transcript = transcriptRef.current;
+    if (!transcript) {
+      return;
+    }
+
+    transcript.scrollTo({
+      top: transcript.scrollHeight,
+      behavior: "smooth"
+    });
+  }, [messages, pendingQuestion]);
+
+  const canSubmit = question.trim().length >= 1 && !isPending;
+  const starterReplies = buildStarterReplies();
+  const visibleQuickReplies = lastResponse?.quick_replies ?? [];
+
+  const submitQuestion = (rawQuestion: string) => {
+    const trimmed = rawQuestion.trim();
+    if (!trimmed || isPending) {
       return;
     }
 
     setError(null);
-    setLatestQuestion(trimmed);
+    setPendingQuestion(trimmed);
 
     startTransition(async () => {
       try {
-        const response = await queryChat(trimmed);
-        setResult(response);
+        const response = await queryChat(trimmed, conversationId);
+        setConversationId(response.conversation_id);
+        setMessages((current) => [
+          ...current,
+          buildUserMessage(trimmed),
+          buildAssistantMessage(response)
+        ]);
+        setLastResponse(response);
+        setQuestion("");
       } catch (submitError) {
         const detail =
           submitError instanceof Error
             ? submitError.message
             : "Не удалось получить ответ от backend.";
         setError(detail);
+      } finally {
+        setPendingQuestion(null);
       }
     });
   };
 
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    submitQuestion(question);
+  };
+
+  const handleReset = () => {
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const response = await resetConversation(conversationId);
+        setConversationId(response.conversation_id);
+        setMessages([]);
+        setLastResponse(null);
+        setPendingQuestion(null);
+        setQuestion("");
+      } catch (resetError) {
+        const detail =
+          resetError instanceof Error
+            ? resetError.message
+            : "Не удалось сбросить диалог.";
+        setError(detail);
+      }
+    });
+  };
+
+  const latestAssistantMessageId =
+    [...messages].reverse().find((message) => message.role === "assistant")?.id ?? null;
+
   return (
-    <main className="appShell">
-      <header className="topBar">
+    <main className="appShell demoShell">
+      <header className="topBar demoTopBar">
         <div>
           <span className="sectionTag">Telecom Support</span>
           <h1 className="pageTitle">FAQ Semantic Search</h1>
+          <p className="subtleText">
+            Короткий диалоговый интерфейс для вопросов про интернет, оплату и личный кабинет.
+          </p>
         </div>
-        <div className="statusBadge">Support tool MVP</div>
+        <div className="statusRow">
+          <span className="statusBadge">Retrieval-first demo</span>
+        </div>
       </header>
 
-      <section className="pageIntro">
-        <p>
-          Задайте вопрос по тарифам, оплате, качеству связи или домашнему
-          интернету. Сервис ищет по FAQ variants, нормализует сокращения и
-          разговорные формы, а затем возвращает готовый ответ или отправляет
-          запрос на ручную обработку.
-        </p>
-      </section>
-
-      <div className="workspaceGrid">
-        <section className="surfaceCard inputCard">
-          <div className="panelHeading">
+      <section className="demoGrid">
+        <section className="surfaceCard chatPane">
+          <div className="chatPaneHeader">
             <div>
-              <span className="sectionTag">Запрос</span>
-              <h2>Что нужно пользователю?</h2>
-            </div>
-          </div>
-
-          <form className="queryForm" onSubmit={handleSubmit}>
-            <label className="fieldLabel" htmlFor="support-question">
-              Вопрос
-            </label>
-            <textarea
-              id="support-question"
-              onChange={(event) => setQuestion(event.target.value)}
-              placeholder="Например: У меня пропал домашний интернет"
-              rows={4}
-              value={question}
-            />
-            <div className="formFooter">
-              <span className="helperText">
-                Минимум 3 символа. Поддерживаются короткие запросы вроде `лк`,
-                `инет` и разговорные формулировки.
-              </span>
-              <button className="primaryButton" disabled={!canSubmit} type="submit">
-                {isPending ? "Идёт поиск..." : "Найти ответ"}
-              </button>
-            </div>
-          </form>
-
-          <div className="suggestionRow">
-            <span className="sectionTag muted">Примеры</span>
-            <div className="chipWrap">{suggestionChips}</div>
-          </div>
-        </section>
-
-        <section className="surfaceCard resultCard">
-          <div className="panelHeading">
-            <div>
-              <span className="sectionTag">Результат</span>
-              <h2>Ответ системы</h2>
-            </div>
-            {result ? (
-              <span
-                className={`statusBadge ${result.status === "matched" ? "success" : "warning"}`}
-              >
-                {result.status === "matched" ? "Найден FAQ" : "Нужна эскалация"}
-              </span>
-            ) : null}
-          </div>
-
-          {error ? <div className="errorBanner">{error}</div> : null}
-
-          {isPending ? (
-            <div className="resultState">
-              <p className="resultTitle">Ищем подходящий ответ...</p>
-              <p>
-                Сравниваем вопрос с FAQ-базой и проверяем, проходит ли найденное
-                совпадение по порогу уверенности.
+              <span className="sectionTag">Dialogue FAQ</span>
+              <h2 className="paneTitle">Спросите как обычному оператору</h2>
+              <p className="paneSubtitle">
+                Задайте вопрос в свободной форме и продолжайте коротким follow-up сообщением.
               </p>
             </div>
-          ) : result ? (
-            <div className="resultState">
-              {latestQuestion ? (
-                <div className="contextBlock">
-                  <span className="sectionTag muted">Последний запрос</span>
-                  <p>{latestQuestion}</p>
+          </div>
+
+          {error ? <div className="errorBanner inlineError">{error}</div> : null}
+
+          <div className="chatPaneBody">
+            <div className="chatTranscriptFrame">
+              <div className="chatTranscript chatTranscriptViewport" ref={transcriptRef}>
+                {messages.length ? (
+                  messages.map((message) => (
+                    <article
+                      className={`chatBubble ${message.role === "assistant" ? "assistant" : "user"}`}
+                      key={message.id}
+                    >
+                      {message.role === "assistant" &&
+                      message.status &&
+                      message.id === latestAssistantMessageId ? (
+                        <span
+                          className={`statusBadge messageStatusBadge ${
+                            message.status === "matched"
+                              ? "success"
+                              : message.status === "escalated"
+                                ? "warning"
+                                : ""
+                          }`}
+                        >
+                          {formatStatus(message.status)}
+                        </span>
+                      ) : (
+                        <span className="sectionTag muted">
+                          {message.role === "assistant" ? "assistant" : "user"}
+                        </span>
+                      )}
+                      <p>{message.text}</p>
+                    </article>
+                  ))
+                ) : (
+                  <div className="chatEmptyState">
+                    <p className="resultTitle">Задайте вопрос в одну-две фразы</p>
+                    <p>Можно начать с примера ниже или сразу написать свой запрос в composer.</p>
+                    <div className="chipWrap quickReplyWrap emptyStateChips">
+                      {starterReplies.map((reply) => (
+                        <button
+                          className="suggestionChip quickReplyChip quickReplyChip-fallback"
+                          disabled={isPending}
+                          key={`${reply.type}-${reply.label}-${reply.value}`}
+                          onClick={() => submitQuestion(reply.value)}
+                          type="button"
+                        >
+                          {reply.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {pendingQuestion ? (
+                  <article className="chatBubble user pending">
+                    <span className="sectionTag muted">user</span>
+                    <p>{pendingQuestion}</p>
+                  </article>
+                ) : null}
+              </div>
+
+              {isPending ? (
+                <div className="inlineStatusCard">
+                  <p className="resultTitle">Подбираем ответ...</p>
+                  <p>Учитываем текущий контекст диалога и доступные варианты ответа.</p>
                 </div>
               ) : null}
-
-              <div className="resultBody">
-                <p className="resultTitle">{result.answer}</p>
-              </div>
-
-              <div className="metaGrid">
-                <div className="metaItem">
-                  <span>Статус</span>
-                  <strong>
-                    {result.status === "matched"
-                      ? "Готовый ответ из базы"
-                      : "Эскалация после слабого матча"}
-                  </strong>
-                </div>
-                <div className="metaItem">
-                  <span>Уверенность</span>
-                  <strong>{formatSimilarity(result.score)}</strong>
-                </div>
-                <div className="metaItem wide">
-                  <span>Найденная формулировка</span>
-                  <strong>{result.matched_question ?? "Совпадение не прошло по порогу"}</strong>
-                </div>
-                <div className="metaItem wide">
-                  <span>Что произошло</span>
-                  <strong>
-                    {result.status === "matched"
-                      ? "Backend нашёл достаточное semantic совпадение и вернул канонический FAQ-ответ."
-                      : "Лучший кандидат оказался ниже порога, поэтому запрос ушёл в fallback и очередь эскалации."}
-                  </strong>
-                </div>
-              </div>
             </div>
-          ) : (
-            <div className="resultState empty">
-              <p className="resultTitle">Пока нет результата</p>
-              <p>
-                После отправки вопроса здесь появится найденный FAQ-ответ или
-                fallback-сообщение с признаком эскалации.
+
+            {messages.length > 0 && visibleQuickReplies.length ? (
+              <div className="quickReplySection">
+                <div className="quickReplyHeader">
+                  <span className="sectionTag muted">Быстрый ответ</span>
+                </div>
+                <div className="chipWrap quickReplyWrap">
+                  {visibleQuickReplies.map((reply) => (
+                    <button
+                      className={`suggestionChip quickReplyChip quickReplyChip-${reply.type}`}
+                      disabled={isPending}
+                      key={`${reply.type}-${reply.label}-${reply.value}`}
+                      onClick={() => submitQuestion(reply.value)}
+                      type="button"
+                    >
+                      {reply.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <form className="chatComposerModule" onSubmit={handleSubmit}>
+              <label className="fieldLabel" htmlFor="support-question">
+                Сообщение
+              </label>
+              <div className="composerCard">
+                <textarea
+                  className="composerTextarea"
+                  id="support-question"
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="Например: Не работает интернет"
+                  rows={3}
+                  value={question}
+                />
+                <div className="composerActions">
+                  <button
+                    className="secondaryButton composerReset"
+                    disabled={isPending}
+                    onClick={handleReset}
+                    type="button"
+                  >
+                    Сбросить
+                  </button>
+                  <button className="primaryButton composerSend" disabled={!canSubmit} type="submit">
+                    {isPending ? "Идёт поиск..." : "Отправить"}
+                  </button>
+                </div>
+              </div>
+              <p className="helperText composerHint">
+                Короткие follow-up реплики тоже работают: `домашний`, `да`, `в приложении`.
               </p>
-            </div>
-          )}
+            </form>
+          </div>
         </section>
-      </div>
+      </section>
     </main>
   );
 }
