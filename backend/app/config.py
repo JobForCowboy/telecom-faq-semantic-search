@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     embedding_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     embedding_dim: int = 768
     similarity_threshold: float = Field(default=0.72, ge=0.0, le=1.0)
+    match_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    domain_threshold: float = Field(default=0.52, ge=0.0, le=1.0)
+    soft_match_enabled: bool = True
+    soft_match_min_score: float = Field(default=0.68, ge=0.0, le=1.0)
+    soft_match_min_margin: float = Field(default=0.05, ge=0.0, le=1.0)
     clarification_score_gap: float = Field(default=0.04, ge=0.0, le=1.0)
     clarification_min_score: float = Field(default=0.58, ge=0.0, le=1.0)
     follow_up_short_message_max_chars: int = Field(default=24, ge=1, le=500)
@@ -29,7 +34,14 @@ class Settings(BaseSettings):
     fallback_message: str = (
         "Точный ответ не найден. Мы передали запрос оператору поддержки."
     )
+    out_of_domain_message: str = (
+        "Ассистент помогает только по вопросам связи, интернета, оплаты, тарифа и личного кабинета."
+    )
     seed_faq_path: str = "../data/kb/faqs.json"
+
+    @property
+    def effective_match_threshold(self) -> float:
+        return self.match_threshold if self.match_threshold is not None else self.similarity_threshold
 
 
 @lru_cache

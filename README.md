@@ -26,6 +26,7 @@ The system is strengthened through:
 - a shared normalization pipeline for query, seed, admin updates, and eval
 - a larger eval set with abbreviations, typos, colloquial requests, short queries, and irrelevant prompts
 - a short-context dialogue layer for clarification and follow-up resolution
+- retrieval-aware domain and out-of-domain policy layers
 - an escalation review loop that feeds missed queries back into the KB
 
 ### How retrieval works
@@ -85,6 +86,14 @@ Variants are intentionally noisy and user-like:
 - common typos
 - slightly dirty support-chat wording
 
+## ML Backend Policy
+
+`transformers` is the real/default embedding backend for this project. The intended semantic retrieval model is `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`; it is not an incidental implementation detail, because retrieval quality depends on multilingual sentence embeddings rather than lexical hashes.
+
+The domain filter, out-of-domain policy, normalization, soft-match handling, and clarification logic are retrieval-aware policy layers. They make semantic retrieval safer and more explainable, but they are not replacements for ML retrieval and should not be used to weaken the retrieval-first architecture.
+
+`hash` is only a degraded offline fallback for explicit smoke checks, demos, or diagnostics when the transformer model cannot be loaded. It is not production-quality retrieval and should not be treated as an equivalent mode. Do not silently switch `.env`, `.env.example`, or `backend/.env.example` to `EMBEDDING_BACKEND=hash`; if `transformers` fails because HuggingFace, DNS, network access, or the local model cache is unavailable, report that as an environment/model availability problem.
+
 ## Project Layout
 
 - [backend/app/services/chat.py](/home/kia/Documents/work-7rl/AILAB/telecom-faq-semantic-search/backend/app/services/chat.py)
@@ -109,6 +118,8 @@ This starts:
 - backend at `http://localhost:8000`
 - postgres at `localhost:5432`
 
+The default backend is `EMBEDDING_BACKEND=transformers`. On first startup, the backend may need HuggingFace/network access to download `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or a pre-populated local model cache. If that model cannot be loaded, fix the environment or cache instead of changing the project default. Use `EMBEDDING_BACKEND=hash` only for intentional offline smoke/debug runs.
+
 ### Manual backend run
 
 ```bash
@@ -124,6 +135,8 @@ If you want the actual embedding backend locally, install the ML extras as well:
 ```bash
 pip install -r backend/requirements-ml.txt
 ```
+
+Without the ML extras and model availability, `transformers` cannot provide semantic retrieval. That is an environment setup issue; `hash` remains only an explicit degraded fallback for offline diagnostics.
 
 ### Manual frontend run
 
@@ -284,6 +297,8 @@ The CLI exits with a non-zero status when smoke fails or when any eval case fail
 - matched variant
 - canonical FAQ
 - score
+- domain decision
+- out-of-domain decision trace
 - follow-up detection
 - clarification trigger
 - final threshold decision
@@ -314,7 +329,7 @@ This project is intentionally improved through data and preprocessing, not throu
 - `GET /api/admin/escalations`
 - `GET /health`
 
-`POST /api/admin/retrieval-debug` returns debug-only retrieval metadata including recent messages, raw query, contextualized query, normalized contextualized query, threshold, and top matches.
+`POST /api/admin/retrieval-debug` returns debug-only retrieval metadata including recent messages, raw query, contextualized query, normalized contextualized query, threshold, top matches, and the domain/out-of-domain decision trace.
 
 ## Tests
 

@@ -7,6 +7,7 @@ from ..schemas import (
     FAQCreate,
     FAQResponse,
     FAQUpdate,
+    OutOfDomainResponse,
     RetrievalDebugResponse,
 )
 from ..services.admin import AdminService
@@ -48,6 +49,11 @@ def delete_faq(faq_id: int, service: AdminService = Depends(get_admin_service)) 
 @router.get("/escalations", response_model=list[EscalationResponse])
 def list_escalations(service: AdminService = Depends(get_admin_service)) -> list[EscalationResponse]:
     return service.list_escalations()
+
+
+@router.get("/out-of-domain", response_model=list[OutOfDomainResponse])
+def list_out_of_domain(service: AdminService = Depends(get_admin_service)) -> list[OutOfDomainResponse]:
+    return service.list_out_of_domain()
 
 
 @router.post("/retrieval-debug", response_model=RetrievalDebugResponse)

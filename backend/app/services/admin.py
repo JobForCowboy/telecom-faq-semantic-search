@@ -5,7 +5,7 @@ from ..config import Settings
 from ..embeddings import EmbedderManager, EmbedderUnavailableError
 from ..models import FAQEntry, FAQVariant, UserQuery
 from ..normalization import get_text_normalizer, prepare_variants
-from ..schemas import EscalationResponse, FAQCreate, FAQResponse, FAQUpdate
+from ..schemas import EscalationResponse, FAQCreate, FAQResponse, FAQUpdate, OutOfDomainResponse
 
 
 class AdminService:
@@ -92,22 +92,16 @@ class AdminService:
             .where(UserQuery.status == "escalated")
             .order_by(UserQuery.created_at.desc(), UserQuery.id.desc())
         ).all()
-        return [
-            EscalationResponse(
-                id=row.id,
-                question_text=row.question_text,
-                normalized_question_text=row.normalized_question_text,
-                contextualized_question_text=row.contextualized_question_text,
-                response_text=row.response_text,
-                score=row.similarity_score,
-                matched_faq_id=row.matched_faq_id,
-                matched_canonical_question=row.faq_entry.canonical_question if row.faq_entry else None,
-                conversation_id=row.conversation_id,
-                decision_type=row.decision_type,
-                created_at=row.created_at,
-            )
-            for row in escalations
-        ]
+        return [self._serialize_query_review(row, EscalationResponse) for row in escalations]
+
+    def list_out_of_domain(self) -> list[OutOfDomainResponse]:
+        rows = self.session.scalars(
+            select(UserQuery)
+            .options(selectinload(UserQuery.faq_entry))
+            .where(UserQuery.status == "out_of_domain")
+            .order_by(UserQuery.created_at.desc(), UserQuery.id.desc())
+        ).all()
+        return [self._serialize_query_review(row, OutOfDomainResponse) for row in rows]
 
     def _embed(self, text: str) -> list[float]:
         try:
@@ -126,6 +120,39 @@ class AdminService:
             intent_label=faq.intent_label,
             created_at=faq.created_at,
             updated_at=faq.updated_at,
+        )
+
+    def _serialize_query_review(
+        self,
+        row: UserQuery,
+        response_model: type[EscalationResponse],
+    ) -> EscalationResponse:
+        return response_model(
+            id=row.id,
+            question_text=row.question_text,
+            normalized_question_text=row.normalized_question_text,
+            contextualized_question_text=row.contextualized_question_text,
+            response_text=row.response_text,
+            score=row.similarity_score,
+            matched_faq_id=row.matched_faq_id,
+            matched_canonical_question=row.faq_entry.canonical_question if row.faq_entry else None,
+            conversation_id=row.conversation_id,
+            decision_type=row.decision_type,
+            domain_score=row.domain_score,
+            domain_reason=row.domain_reason,
+            ood_reason=row.ood_reason,
+            soft_match_used=row.soft_match_used,
+            soft_match_reason=row.soft_match_reason,
+            top_score=row.top_score,
+            top2_score=row.top2_score,
+            match_margin=row.match_margin,
+            decision_path=list(row.decision_path or []),
+            domain_signals=list(row.domain_signals or []),
+            domain_keyword_hits=list(row.domain_keyword_hits or []),
+            offtopic_rule_hit=row.offtopic_rule_hit,
+            garbage_rule_hit=row.garbage_rule_hit,
+            retrieval_candidates=list(row.retrieval_candidates or []),
+            created_at=row.created_at,
         )
 
     def _normalize_optional_text(self, value: str | None) -> str | None:

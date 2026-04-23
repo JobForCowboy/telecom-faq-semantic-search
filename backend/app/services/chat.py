@@ -10,6 +10,7 @@ from ..embeddings import EmbedderManager, EmbedderUnavailableError
 from ..models import FAQEntry, FAQVariant, UserQuery
 from ..normalization import get_text_normalizer
 from ..schemas import ChatQueryResponse, RetrievalDebugResponse, RetrievalMatchResponse
+from .decision_policy import DecisionPolicy
 
 
 @dataclass
@@ -45,6 +46,7 @@ def build_chat_response(
     if candidate is None or candidate.score < threshold:
         return ChatQueryResponse(
             status="escalated",
+            decision_type="escalated",
             answer=fallback_message,
             score=candidate.score if candidate else None,
             matched_faq_id=candidate.faq_id if candidate else None,
@@ -53,10 +55,12 @@ def build_chat_response(
             conversation_id=conversation_id,
             conversation_message_count=conversation_message_count,
             is_follow_up=is_follow_up,
+            top_score=candidate.score if candidate else None,
         )
 
     return ChatQueryResponse(
         status="matched",
+        decision_type="matched",
         answer=candidate.answer,
         score=candidate.score,
         matched_faq_id=candidate.faq_id,
@@ -65,6 +69,9 @@ def build_chat_response(
         conversation_id=conversation_id,
         conversation_message_count=conversation_message_count,
         is_follow_up=is_follow_up,
+        top_score=candidate.score,
+        top2_score=candidates[1].score if len(candidates) > 1 else None,
+        match_margin=(candidate.score - candidates[1].score) if len(candidates) > 1 else candidate.score,
     )
 
 
@@ -79,6 +86,7 @@ class ChatService:
         self.embedder_manager = embedder_manager
         self.settings = settings
         self.normalizer = get_text_normalizer()
+        self.decision_policy = DecisionPolicy(settings)
 
     def answer_question(self, question: str) -> ChatQueryResponse:
         original_question, normalized_question = self.prepare_question(question)
@@ -105,14 +113,14 @@ class ChatService:
         is_follow_up: bool = False,
     ) -> ChatQueryResponse:
         candidates = self.find_top_matches(normalized_question, top_k=top_k)
-        return build_chat_response(
+        return self.decision_policy.decide(
+            raw_query=original_question,
+            normalized_query=normalized_question,
             candidates=candidates,
-            threshold=self.settings.similarity_threshold,
-            fallback_message=self.settings.fallback_message,
             conversation_id=conversation_id,
             conversation_message_count=conversation_message_count,
             is_follow_up=is_follow_up,
-        )
+        ).response
 
     def preview_question(self, question: str, top_k: int = 3) -> RetrievalDebugResponse:
         original_question, normalized_question = self.prepare_question(question)
@@ -121,18 +129,24 @@ class ChatService:
             original_question=original_question,
             top_k=top_k,
         )
+        top_score = response.top_score
+        threshold_decision = "matched" if top_score is not None and top_score >= self.settings.effective_match_threshold else response.status
         return RetrievalDebugResponse(
             original_question=original_question,
             normalized_question=normalized_question,
             raw_query=original_question,
             contextualized_query=original_question,
             normalized_contextualized_query=normalized_question,
-            threshold=self.settings.similarity_threshold,
-            threshold_decision=response.status,
+            threshold=self.settings.effective_match_threshold,
+            match_threshold=self.settings.effective_match_threshold,
+            domain_threshold=self.settings.domain_threshold,
+            threshold_decision=threshold_decision,
             **response.model_dump(),
         )
 
     def find_top_matches(self, normalized_question: str, top_k: int = 3) -> list[MatchCandidate]:
+        if not normalized_question.strip():
+            return []
         try:
             vector = self.embedder_manager.embed(normalized_question)
         except EmbedderUnavailableError:
@@ -188,7 +202,21 @@ class ChatService:
             response_text=response.answer,
             similarity_score=response.score,
             status=response.status,
-            decision_type=response.status,
+            decision_type=response.decision_type or response.status,
+            domain_score=response.domain_score,
+            domain_reason=response.domain_reason,
+            ood_reason=response.ood_reason,
+            soft_match_used=response.soft_match_used,
+            soft_match_reason=response.soft_match_reason,
+            top_score=response.top_score,
+            top2_score=response.top2_score,
+            match_margin=response.match_margin,
+            decision_path=list(response.decision_path),
+            domain_signals=list(response.domain_signals),
+            domain_keyword_hits=list(response.domain_keyword_hits),
+            offtopic_rule_hit=response.offtopic_rule_hit,
+            garbage_rule_hit=response.garbage_rule_hit,
+            retrieval_candidates=[item.model_dump() for item in response.top_matches],
             conversation_id=response.conversation_id or None,
             matched_faq_id=response.matched_faq_id,
         )

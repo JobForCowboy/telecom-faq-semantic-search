@@ -15,11 +15,12 @@ export type ConversationMessage = {
   role: "user" | "assistant";
   text: string;
   created_at: string;
-  decision_type: "matched" | "clarification_required" | "escalated" | null;
+  decision_type: "matched" | "clarification_required" | "escalated" | "out_of_domain" | null;
 };
 
 export type ChatResponse = {
-  status: "matched" | "clarification_required" | "escalated";
+  status: "matched" | "clarification_required" | "escalated" | "out_of_domain";
+  decision_type: "matched" | "escalated" | "out_of_domain" | null;
   answer: string;
   score: number | null;
   matched_faq_id: number | null;
@@ -31,6 +32,19 @@ export type ChatResponse = {
   clarification_question: string | null;
   clarification_type: string | null;
   quick_replies: QuickReply[];
+  domain_score: number | null;
+  domain_reason: string | null;
+  ood_reason: string | null;
+  domain_signals: string[];
+  domain_keyword_hits: string[];
+  offtopic_rule_hit: string | null;
+  garbage_rule_hit: string | null;
+  soft_match_used: boolean;
+  soft_match_reason: string | null;
+  top_score: number | null;
+  top2_score: number | null;
+  match_margin: number | null;
+  decision_path: string[];
 };
 
 export type RetrievalDebugResponse = ChatResponse & {
@@ -40,10 +54,12 @@ export type RetrievalDebugResponse = ChatResponse & {
   contextualized_query: string;
   normalized_contextualized_query: string;
   threshold: number;
+  match_threshold: number;
+  domain_threshold: number;
   recent_messages: ConversationMessage[];
   follow_up_detected: boolean;
   clarification_triggered: boolean;
-  threshold_decision: "matched" | "clarification_required" | "escalated";
+  threshold_decision: "matched" | "clarification_required" | "escalated" | "out_of_domain";
 };
 
 export type ResetConversationResponse = {
@@ -68,12 +84,31 @@ export type EscalationItem = {
   id: number;
   question_text: string;
   normalized_question_text: string;
+  contextualized_question_text: string | null;
   response_text: string;
   score: number | null;
   matched_faq_id: number | null;
   matched_canonical_question: string | null;
+  conversation_id: string | null;
+  decision_type: "matched" | "clarification_required" | "escalated" | "out_of_domain" | null;
+  domain_score: number | null;
+  domain_reason: string | null;
+  ood_reason: string | null;
+  soft_match_used: boolean;
+  soft_match_reason: string | null;
+  top_score: number | null;
+  top2_score: number | null;
+  match_margin: number | null;
+  decision_path: string[];
+  domain_signals: string[];
+  domain_keyword_hits: string[];
+  offtopic_rule_hit: string | null;
+  garbage_rule_hit: string | null;
+  retrieval_candidates: Record<string, unknown>[];
   created_at: string;
 };
+
+export type OutOfDomainItem = EscalationItem;
 
 type FAQPayload = {
   canonical_question: string;
@@ -157,6 +192,10 @@ export function deleteFaq(faqId: number) {
 
 export function fetchEscalations() {
   return apiFetch<EscalationItem[]>("/api/admin/escalations");
+}
+
+export function fetchOutOfDomain() {
+  return apiFetch<OutOfDomainItem[]>("/api/admin/out-of-domain");
 }
 
 export function previewRetrieval(question: string, conversationId?: string | null) {

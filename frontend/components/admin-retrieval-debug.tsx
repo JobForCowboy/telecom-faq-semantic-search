@@ -19,6 +19,9 @@ function formatStatus(status: RetrievalDebugResponse["status"]) {
   if (status === "clarification_required") {
     return "Clarification";
   }
+  if (status === "out_of_domain") {
+    return "Out of Domain";
+  }
   return "Escalated";
 }
 
@@ -128,7 +131,7 @@ export function AdminRetrievalDebug() {
                 className={`statusBadge ${
                   result.status === "matched"
                     ? "success"
-                    : result.status === "escalated"
+                    : result.status === "escalated" || result.status === "out_of_domain"
                       ? "warning"
                       : ""
                 }`}
@@ -179,12 +182,28 @@ export function AdminRetrievalDebug() {
                   <strong>{formatScore(result.threshold)}</strong>
                 </div>
                 <div className="metaItem">
+                  <span>Domain threshold</span>
+                  <strong>{formatScore(result.domain_threshold)}</strong>
+                </div>
+                <div className="metaItem">
+                  <span>Domain score</span>
+                  <strong>{formatScore(result.domain_score)}</strong>
+                </div>
+                <div className="metaItem">
                   <span>Follow-up</span>
                   <strong>{result.follow_up_detected ? "Да" : "Нет"}</strong>
                 </div>
                 <div className="metaItem">
                   <span>Clarification</span>
                   <strong>{result.clarification_triggered ? "Да" : "Нет"}</strong>
+                </div>
+                <div className="metaItem">
+                  <span>Soft match</span>
+                  <strong>{result.soft_match_used ? "Да" : "Нет"}</strong>
+                </div>
+                <div className="metaItem">
+                  <span>Margin</span>
+                  <strong>{formatScore(result.match_margin)}</strong>
                 </div>
                 <div className="metaItem wide">
                   <span>Conversation ID</span>
@@ -202,6 +221,22 @@ export function AdminRetrievalDebug() {
                       : "Нет"}
                   </strong>
                 </div>
+                <div className="metaItem wide">
+                  <span>Domain reason</span>
+                  <strong>{result.domain_reason ?? result.ood_reason ?? "—"}</strong>
+                </div>
+                <div className="metaItem wide">
+                  <span>Soft match reason</span>
+                  <strong>{result.soft_match_reason ?? "—"}</strong>
+                </div>
+                <div className="metaItem wide">
+                  <span>Signal hits</span>
+                  <strong>
+                    {result.domain_keyword_hits.length
+                      ? result.domain_keyword_hits.join(" · ")
+                      : "Нет keyword hits"}
+                  </strong>
+                </div>
               </div>
             </div>
           ) : (
@@ -211,6 +246,58 @@ export function AdminRetrievalDebug() {
             </div>
           )}
         </section>
+      </section>
+
+      <section className="surfaceCard tableCard">
+        <div className="panelHeading">
+          <div>
+            <span className="sectionTag">Decision Trace</span>
+            <h2>Почему backend принял это решение</h2>
+          </div>
+        </div>
+
+        <div className="tableWrap">
+          <table className="dataTable">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result ? (
+                <>
+                  {result.domain_signals.map((signal, index) => (
+                    <tr key={`signal-${index}`}>
+                      <td>Signal</td>
+                      <td className="primaryCell">{signal}</td>
+                    </tr>
+                  ))}
+                  {result.decision_path.map((step, index) => (
+                    <tr key={`path-${index}`}>
+                      <td>Decision path</td>
+                      <td className="primaryCell">{step}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td>Off-topic rule</td>
+                    <td className="primaryCell">{result.offtopic_rule_hit ?? "—"}</td>
+                  </tr>
+                  <tr>
+                    <td>Garbage rule</td>
+                    <td className="primaryCell">{result.garbage_rule_hit ?? "—"}</td>
+                  </tr>
+                </>
+              ) : (
+                <tr>
+                  <td className="emptyTable" colSpan={2}>
+                    После retrieval preview здесь появится decision trace.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="surfaceCard tableCard">

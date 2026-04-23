@@ -1,0 +1,62 @@
+[
+  {
+    "question": "как танцует джигурда",
+    "expected_status": "out_of_domain",
+    "expected_faq_id": null,
+    "case_type": "explicit_ood"
+  },
+  {
+    "question": "какая погода",
+    "expected_status": "out_of_domain",
+    "expected_faq_id": null,
+    "case_type": "explicit_ood"
+  },
+  {
+    "question": "расскажи шутку",
+    "expected_status": "out_of_domain",
+    "expected_faq_id": null,
+    "case_type": "explicit_ood"
+  },
+  {
+    "question": "напиши стих",
+    "expected_status": "out_of_domain",
+    "expected_faq_id": null,
+    "case_type": "explicit_ood"
+  },
+  {
+    "question": "кто такой пушкин",
+    "expected_status": "out_of_domain",
+    "expected_faq_id": null,
+    "case_type": "explicit_ood"
+  },
+  {
+    "question": "не могу оплатить",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "case_type": "borderline_in_domain"
+  },
+  {
+    "question": "не грузит интернет",
+    "expected_status": "matched",
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "borderline_in_domain"
+  },
+  {
+    "question": "ошибка в приложении",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "case_type": "borderline_in_domain"
+  },
+  {
+    "question": "не могу войти",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "case_type": "borderline_in_domain"
+  },
+  {
+    "question": "нет сети",
+    "expected_status": "escalated",
+    "expected_faq_id": null,
+    "case_type": "borderline_in_domain"
+  }
+]

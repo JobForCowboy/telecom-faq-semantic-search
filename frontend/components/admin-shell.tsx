@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ReactNode } from "react";
 
 type AdminShellProps = {
-  activeSection: "faqs" | "debug" | "escalations";
+  activeSection: "faqs" | "debug" | "escalations" | "out_of_domain";
   title: string;
   description: string;
   children: ReactNode;
@@ -42,6 +42,12 @@ export function AdminShell({
             href="/admin/escalations"
           >
             Escalations
+          </Link>
+          <Link
+            className={`navLink ${activeSection === "out_of_domain" ? "active" : ""}`}
+            href="/admin/out-of-domain"
+          >
+            Out of Domain
           </Link>
         </nav>
       </header>

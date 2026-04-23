@@ -28,6 +28,9 @@ function formatStatus(status: ChatResponse["status"]) {
   if (status === "clarification_required") {
     return "Нужно уточнение";
   }
+  if (status === "out_of_domain") {
+    return "Вне домена";
+  }
   return "Передано на эскалацию";
 }
 
@@ -238,7 +241,7 @@ export function ChatShell() {
                           className={`statusBadge messageStatusBadge ${
                             message.status === "matched"
                               ? "success"
-                              : message.status === "escalated"
+                              : message.status === "escalated" || message.status === "out_of_domain"
                                 ? "warning"
                                 : ""
                           }`}

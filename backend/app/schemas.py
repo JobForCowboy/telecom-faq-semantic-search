@@ -1,10 +1,12 @@
 from datetime import datetime
+from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
-ChatStatus = Literal["matched", "clarification_required", "escalated"]
+DecisionType = Literal["matched", "escalated", "out_of_domain"]
+ChatStatus = Literal["matched", "clarification_required", "escalated", "out_of_domain"]
 QuickReplyType = Literal["clarification", "intent_hypothesis", "followup", "fallback"]
 MessageRole = Literal["user", "assistant"]
 
@@ -48,6 +50,7 @@ class ConversationMessageResponse(BaseModel):
 
 class ChatQueryResponse(BaseModel):
     status: ChatStatus
+    decision_type: DecisionType | None = None
     answer: str
     score: float | None = None
     matched_faq_id: int | None = None
@@ -59,6 +62,19 @@ class ChatQueryResponse(BaseModel):
     clarification_question: str | None = None
     clarification_type: str | None = None
     quick_replies: list[QuickReplyResponse] = Field(default_factory=list)
+    domain_score: float | None = None
+    domain_reason: str | None = None
+    ood_reason: str | None = None
+    domain_signals: list[str] = Field(default_factory=list)
+    domain_keyword_hits: list[str] = Field(default_factory=list)
+    offtopic_rule_hit: str | None = None
+    garbage_rule_hit: str | None = None
+    soft_match_used: bool = False
+    soft_match_reason: str | None = None
+    top_score: float | None = None
+    top2_score: float | None = None
+    match_margin: float | None = None
+    decision_path: list[str] = Field(default_factory=list)
 
 
 class ChatResetResponse(BaseModel):
@@ -74,6 +90,8 @@ class RetrievalDebugResponse(ChatQueryResponse):
     contextualized_query: str
     normalized_contextualized_query: str
     threshold: float
+    match_threshold: float
+    domain_threshold: float
     recent_messages: list[ConversationMessageResponse] = Field(default_factory=list)
     follow_up_detected: bool = False
     clarification_triggered: bool = False
@@ -121,6 +139,24 @@ class EscalationResponse(BaseModel):
     matched_canonical_question: str | None
     conversation_id: str | None = None
     decision_type: ChatStatus | None = None
+    domain_score: float | None = None
+    domain_reason: str | None = None
+    ood_reason: str | None = None
+    soft_match_used: bool = False
+    soft_match_reason: str | None = None
+    top_score: float | None = None
+    top2_score: float | None = None
+    match_margin: float | None = None
+    decision_path: list[str] = Field(default_factory=list)
+    domain_signals: list[str] = Field(default_factory=list)
+    domain_keyword_hits: list[str] = Field(default_factory=list)
+    offtopic_rule_hit: str | None = None
+    garbage_rule_hit: str | None = None
+    retrieval_candidates: list[dict[str, Any]] = Field(default_factory=list)
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class OutOfDomainResponse(EscalationResponse):
+    pass

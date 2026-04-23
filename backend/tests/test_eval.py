@@ -296,7 +296,7 @@ def test_run_smoke_checks_health_positive_and_negative() -> None:
                 "top_matches": [],
             },
             "Какая сегодня погода?": {
-                "status": "escalated",
+                "status": "out_of_domain",
                 "matched_faq_id": None,
                 "matched_question": None,
                 "score": 0.21,
@@ -331,6 +331,7 @@ def test_write_reports_persists_json_and_markdown_summary(tmp_path: Path) -> Non
             actual_faq_id=1,
             actual_canonical_question="Почему не работает домашний интернет?",
             score=0.91,
+            soft_match_used=False,
             matched_question="У меня пропал домашний интернет",
             top_matches=[{"faq_id": 1, "canonical_question": "Почему не работает домашний интернет?", "score": 0.91}],
             passed=True,
@@ -370,11 +371,15 @@ def test_render_markdown_summary_includes_combined_row() -> None:
                 "accuracy": 1.0,
                 "matched_accuracy": 1.0,
                 "escalation_accuracy": None,
+                "ood_recall": None,
+                "ood_precision": None,
+                "false_ood": 0,
                 "false_escalations": 0,
                 "false_matches": 0,
                 "dialogue_accuracy": None,
                 "clarification_success_rate": None,
                 "followup_resolution_rate": None,
+                "soft_match_accept_rate": 0.0,
                 "false_clarifications": 0,
                 "top_3_hit_rate": 1.0,
                 "normalization_sensitive_accuracy": None,
@@ -387,11 +392,15 @@ def test_render_markdown_summary_includes_combined_row() -> None:
             "accuracy": 1.0,
             "matched_accuracy": 1.0,
             "escalation_accuracy": None,
+            "ood_recall": None,
+            "ood_precision": None,
+            "false_ood": 0,
             "false_escalations": 0,
             "false_matches": 0,
             "dialogue_accuracy": None,
             "clarification_success_rate": None,
             "followup_resolution_rate": None,
+            "soft_match_accept_rate": 0.0,
             "false_clarifications": 0,
             "top_3_hit_rate": 1.0,
             "normalization_sensitive_accuracy": None,
@@ -400,5 +409,5 @@ def test_render_markdown_summary_includes_combined_row() -> None:
 
     markdown = render_markdown_summary(payload)
 
-    assert "| main | 1 | 1 | 1.000 | 1.000 | n/a | n/a | n/a | n/a | 0 | 1.000 | n/a |" in markdown
-    assert "| all | 1 | 1 | 1.000 | 1.000 | n/a | n/a | n/a | n/a | 0 | 1.000 | n/a |" in markdown
+    assert "| main | 1 | 1 | 1.000 | 1.000 | n/a | n/a | n/a | 0 | n/a | n/a | n/a | 0.000 | 1.000 | n/a |" in markdown
+    assert "| all | 1 | 1 | 1.000 | 1.000 | n/a | n/a | n/a | 0 | n/a | n/a | n/a | 0.000 | 1.000 | n/a |" in markdown

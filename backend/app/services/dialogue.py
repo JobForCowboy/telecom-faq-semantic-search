@@ -39,6 +39,11 @@ DEFAULT_FALLBACK_QUICK_REPLIES = (
     ("Личный кабинет", "личный кабинет"),
     ("Оплата", "оплата"),
 )
+DEFAULT_OOD_QUICK_REPLIES = (
+    ("Не работает интернет", "не работает интернет"),
+    ("Как оплатить связь", "как оплатить связь"),
+    ("Не могу войти в личный кабинет", "не могу войти в личный кабинет"),
+)
 
 
 @dataclass(frozen=True)
@@ -130,7 +135,9 @@ class DialogueChatService:
             raw_query=evaluation.raw_query,
             contextualized_query=evaluation.contextualized_query,
             normalized_contextualized_query=evaluation.normalized_contextualized_query,
-            threshold=self.settings.similarity_threshold,
+            threshold=self.settings.effective_match_threshold,
+            match_threshold=self.settings.effective_match_threshold,
+            domain_threshold=self.settings.domain_threshold,
             recent_messages=self._serialize_messages(evaluation.recent_messages),
             follow_up_detected=evaluation.is_follow_up,
             clarification_triggered=response.status == "clarification_required",
@@ -164,6 +171,7 @@ class DialogueChatService:
         if clarification is not None:
             response = ChatQueryResponse(
                 status="clarification_required",
+                decision_type=None,
                 answer=clarification.question,
                 score=candidates[0].score if candidates else None,
                 matched_faq_id=None,
@@ -300,6 +308,12 @@ class DialogueChatService:
                     value=option.value,
                 )
                 for option in clarification.options
+            ]
+
+        if response.status == "out_of_domain":
+            return [
+                QuickReplyResponse(type="fallback", label=label, value=value)
+                for label, value in DEFAULT_OOD_QUICK_REPLIES
             ]
 
         if response.status == "matched":

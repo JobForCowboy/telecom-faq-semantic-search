@@ -165,6 +165,7 @@ class CaseResult:
     actual_faq_id: int | None
     actual_canonical_question: str | None
     score: float | None
+    soft_match_used: bool
     matched_question: str | None
     top_matches: list[dict[str, Any]]
     passed: bool
@@ -190,6 +191,7 @@ class CaseResult:
             "actual_faq_id": self.actual_faq_id,
             "actual_canonical_question": self.actual_canonical_question,
             "score": self.score,
+            "soft_match_used": self.soft_match_used,
             "matched_question": self.matched_question,
             "top_matches": self.top_matches,
             "pass": self.passed,
@@ -211,9 +213,18 @@ class DatasetMetrics:
     escalated_cases: int
     escalated_passed: int
     escalation_accuracy: float | None
+    out_of_domain_cases: int
+    out_of_domain_passed: int
+    out_of_domain_accuracy: float | None
     false_escalations: int
     false_matches: int
+    false_ood: int
     wrong_faq_matches: int
+    ood_precision: float | None
+    ood_recall: float | None
+    escalation_rate: float | None
+    false_match_rate: float | None
+    soft_match_accept_rate: float | None
     top_3_hit_rate: float | None
     normalization_sensitive_total: int
     normalization_sensitive_passed: int
@@ -238,9 +249,18 @@ class DatasetMetrics:
             "escalated_cases": self.escalated_cases,
             "escalated_passed": self.escalated_passed,
             "escalation_accuracy": self.escalation_accuracy,
+            "out_of_domain_cases": self.out_of_domain_cases,
+            "out_of_domain_passed": self.out_of_domain_passed,
+            "out_of_domain_accuracy": self.out_of_domain_accuracy,
             "false_escalations": self.false_escalations,
             "false_matches": self.false_matches,
+            "false_ood": self.false_ood,
             "wrong_faq_matches": self.wrong_faq_matches,
+            "ood_precision": self.ood_precision,
+            "ood_recall": self.ood_recall,
+            "escalation_rate": self.escalation_rate,
+            "false_match_rate": self.false_match_rate,
+            "soft_match_accept_rate": self.soft_match_accept_rate,
             "top_3_hit_rate": self.top_3_hit_rate,
             "normalization_sensitive_total": self.normalization_sensitive_total,
             "normalization_sensitive_passed": self.normalization_sensitive_passed,
@@ -362,7 +382,7 @@ def normalize_eval_case(
         raise EvalError(f"Eval row is missing question/query or conversation: {row}")
 
     expected_status = str(row.get("expected_status") or "").strip()
-    if expected_status not in {"matched", "clarification_required", "escalated"}:
+    if expected_status not in {"matched", "clarification_required", "escalated", "out_of_domain"}:
         raise EvalError(
             f"Unsupported expected_status for question '{question or (conversation[-1].text if conversation else '')}': "
             f"{expected_status}"
@@ -447,6 +467,7 @@ def evaluate_case(
         actual_faq_id=actual_faq_id,
         actual_canonical_question=actual_canonical_question,
         score=_optional_float(response.get("score")),
+        soft_match_used=bool(response.get("soft_match_used")),
         matched_question=_optional_text(response.get("matched_question")),
         top_matches=top_matches_list,
         passed=passed,
@@ -541,6 +562,7 @@ def evaluate_dialogue_case(
         actual_faq_id=actual_faq_id,
         actual_canonical_question=actual_canonical_question,
         score=_optional_float(final_response.get("score")),
+        soft_match_used=bool(final_response.get("soft_match_used")),
         matched_question=_optional_text(final_response.get("matched_question")),
         top_matches=top_matches_list,
         passed=passed,
@@ -560,6 +582,8 @@ def determine_case_outcome(
             return False, "clarification_instead_of_match"
         if actual_status == "escalated":
             return False, "false_escalation"
+        if actual_status == "out_of_domain":
+            return False, "false_ood"
         if actual_status != "matched":
             return False, "unexpected_status"
         if actual_faq_id != case.expected_faq_id:
@@ -573,10 +597,25 @@ def determine_case_outcome(
             return False, "false_match"
         if actual_status == "escalated":
             return False, "false_escalation"
+        if actual_status == "out_of_domain":
+            return False, "false_ood"
         return False, "unexpected_status"
 
-    if actual_status == "escalated":
+    if case.expected_status == "escalated":
+        if actual_status == "escalated":
+            return True, None
+        if actual_status == "out_of_domain":
+            return False, "false_ood"
+        if actual_status == "clarification_required":
+            return False, "false_clarification"
+        if actual_status == "matched":
+            return False, "false_match"
+        return False, "unexpected_status"
+
+    if actual_status == "out_of_domain":
         return True, None
+    if actual_status == "escalated":
+        return False, "false_escalation"
     if actual_status == "clarification_required":
         return False, "false_clarification"
     if actual_status == "matched":
@@ -622,7 +661,14 @@ def compute_metrics(dataset_name: str, results: list[CaseResult]) -> DatasetMetr
     escalated_results = [result for result in results if result.expected_status == "escalated"]
     escalated_passed = sum(result.passed for result in escalated_results)
     false_matches = sum(result.failure_reason == "false_match" for result in escalated_results)
+    ood_results = [result for result in results if result.expected_status == "out_of_domain"]
+    ood_passed = sum(result.passed for result in ood_results)
+    false_ood = sum(result.failure_reason == "false_ood" for result in results)
     false_clarifications = sum(result.failure_reason == "false_clarification" for result in results)
+    predicted_ood = [result for result in results if result.actual_status == "out_of_domain"]
+    predicted_escalated = [result for result in results if result.actual_status == "escalated"]
+    non_matched_results = [result for result in results if result.expected_status != "matched"]
+    soft_match_results = [result for result in results if result.soft_match_used]
 
     top_3_hits = sum(_is_top_3_hit(result) for result in matched_results)
     normalization_results = [result for result in results if result.normalization_sensitive]
@@ -647,9 +693,21 @@ def compute_metrics(dataset_name: str, results: list[CaseResult]) -> DatasetMetr
         escalated_cases=len(escalated_results),
         escalated_passed=escalated_passed,
         escalation_accuracy=_safe_ratio(escalated_passed, len(escalated_results)),
+        out_of_domain_cases=len(ood_results),
+        out_of_domain_passed=ood_passed,
+        out_of_domain_accuracy=_safe_ratio(ood_passed, len(ood_results)),
         false_escalations=false_escalations,
         false_matches=false_matches,
+        false_ood=false_ood,
         wrong_faq_matches=wrong_faq_matches,
+        ood_precision=_safe_ratio(ood_passed, len(predicted_ood)),
+        ood_recall=_safe_ratio(ood_passed, len(ood_results)),
+        escalation_rate=_safe_ratio(len(predicted_escalated), total_cases),
+        false_match_rate=_safe_ratio(
+            sum(result.actual_status == "matched" for result in non_matched_results),
+            len(non_matched_results),
+        ),
+        soft_match_accept_rate=_safe_ratio(len(soft_match_results), total_cases),
         top_3_hit_rate=_safe_ratio(top_3_hits, len(matched_results)),
         normalization_sensitive_total=len(normalization_results),
         normalization_sensitive_passed=normalization_passed,
@@ -721,7 +779,7 @@ def run_smoke(
     checks.append(
         SmokeCheck(
             name="negative_case",
-            passed=negative_status == "escalated",
+            passed=negative_status == "out_of_domain",
             detail=f"status={negative_status}",
         )
     )
@@ -770,14 +828,15 @@ def render_markdown_summary(summary_payload: dict[str, Any]) -> str:
         f"Generated at: `{summary_payload['generated_at']}`",
         f"Base URL: `{summary_payload['base_url']}`",
         "",
-        "| Dataset | Total | Passed | Accuracy | Matched Acc | Escalation Acc | Dialogue Acc | Clarification Success | Follow-up Resolution | False Clarifications | Top-3 Hit Rate | Normalization Acc |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Dataset | Total | Passed | Accuracy | Matched Acc | Escalation Acc | OOD Recall | OOD Precision | False OOD | Dialogue Acc | Clarification Success | Follow-up Resolution | Soft Match Rate | Top-3 Hit Rate | Normalization Acc |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
             "| {dataset} | {total} | {passed} | {accuracy} | {matched_accuracy} | "
-            "{escalation_accuracy} | {dialogue_accuracy} | {clarification_success_rate} | "
-            "{followup_resolution_rate} | {false_clarifications} | {top_3_hit_rate} | "
+            "{escalation_accuracy} | {ood_recall} | {ood_precision} | {false_ood} | "
+            "{dialogue_accuracy} | {clarification_success_rate} | "
+            "{followup_resolution_rate} | {soft_match_accept_rate} | {top_3_hit_rate} | "
             "{normalization_accuracy} |".format(
                 dataset=row["dataset_name"],
                 total=row["total_cases"],
@@ -785,10 +844,13 @@ def render_markdown_summary(summary_payload: dict[str, Any]) -> str:
                 accuracy=_format_ratio(row["accuracy"]),
                 matched_accuracy=_format_ratio(row["matched_accuracy"]),
                 escalation_accuracy=_format_ratio(row["escalation_accuracy"]),
+                ood_recall=_format_ratio(row["ood_recall"]),
+                ood_precision=_format_ratio(row["ood_precision"]),
+                false_ood=row["false_ood"],
                 dialogue_accuracy=_format_ratio(row["dialogue_accuracy"]),
                 clarification_success_rate=_format_ratio(row["clarification_success_rate"]),
                 followup_resolution_rate=_format_ratio(row["followup_resolution_rate"]),
-                false_clarifications=row["false_clarifications"],
+                soft_match_accept_rate=_format_ratio(row["soft_match_accept_rate"]),
                 top_3_hit_rate=_format_ratio(row["top_3_hit_rate"]),
                 normalization_accuracy=_format_ratio(row["normalization_sensitive_accuracy"]),
             )
@@ -809,10 +871,11 @@ def print_eval_summary(report: DatasetReport) -> None:
     print(f"[dataset] {report.dataset_name}")
     print(
         "total={total} passed={passed} accuracy={accuracy} matched_accuracy={matched_accuracy} "
-        "escalation_accuracy={escalation_accuracy} false_escalations={false_escalations} "
+        "escalation_accuracy={escalation_accuracy} ood_precision={ood_precision} "
+        "ood_recall={ood_recall} false_ood={false_ood} false_escalations={false_escalations} "
         "false_matches={false_matches} dialogue_accuracy={dialogue_accuracy} "
         "clarification_success_rate={clarification_success_rate} "
-        "followup_resolution_rate={followup_resolution_rate} "
+        "followup_resolution_rate={followup_resolution_rate} soft_match_accept_rate={soft_match_accept_rate} "
         "false_clarifications={false_clarifications} top_3_hit_rate={top_3_hit_rate} "
         "normalization_accuracy={normalization_accuracy}".format(
             total=metrics.total_cases,
@@ -820,11 +883,15 @@ def print_eval_summary(report: DatasetReport) -> None:
             accuracy=_format_ratio(metrics.accuracy),
             matched_accuracy=_format_ratio(metrics.matched_accuracy),
             escalation_accuracy=_format_ratio(metrics.escalation_accuracy),
+            ood_precision=_format_ratio(metrics.ood_precision),
+            ood_recall=_format_ratio(metrics.ood_recall),
+            false_ood=metrics.false_ood,
             false_escalations=metrics.false_escalations,
             false_matches=metrics.false_matches,
             dialogue_accuracy=_format_ratio(metrics.dialogue_accuracy),
             clarification_success_rate=_format_ratio(metrics.clarification_success_rate),
             followup_resolution_rate=_format_ratio(metrics.followup_resolution_rate),
+            soft_match_accept_rate=_format_ratio(metrics.soft_match_accept_rate),
             false_clarifications=metrics.false_clarifications,
             top_3_hit_rate=_format_ratio(metrics.top_3_hit_rate),
             normalization_accuracy=_format_ratio(metrics.normalization_sensitive_accuracy),
@@ -944,10 +1011,11 @@ def main(argv: list[str] | None = None) -> int:
     print("[dataset] all")
     print(
         "total={total} passed={passed} accuracy={accuracy} matched_accuracy={matched_accuracy} "
-        "escalation_accuracy={escalation_accuracy} false_escalations={false_escalations} "
+        "escalation_accuracy={escalation_accuracy} ood_precision={ood_precision} "
+        "ood_recall={ood_recall} false_ood={false_ood} false_escalations={false_escalations} "
         "false_matches={false_matches} dialogue_accuracy={dialogue_accuracy} "
         "clarification_success_rate={clarification_success_rate} "
-        "followup_resolution_rate={followup_resolution_rate} "
+        "followup_resolution_rate={followup_resolution_rate} soft_match_accept_rate={soft_match_accept_rate} "
         "false_clarifications={false_clarifications} top_3_hit_rate={top_3_hit_rate} "
         "normalization_accuracy={normalization_accuracy}".format(
             total=combined_metrics.total_cases,
@@ -955,11 +1023,15 @@ def main(argv: list[str] | None = None) -> int:
             accuracy=_format_ratio(combined_metrics.accuracy),
             matched_accuracy=_format_ratio(combined_metrics.matched_accuracy),
             escalation_accuracy=_format_ratio(combined_metrics.escalation_accuracy),
+            ood_precision=_format_ratio(combined_metrics.ood_precision),
+            ood_recall=_format_ratio(combined_metrics.ood_recall),
+            false_ood=combined_metrics.false_ood,
             false_escalations=combined_metrics.false_escalations,
             false_matches=combined_metrics.false_matches,
             dialogue_accuracy=_format_ratio(combined_metrics.dialogue_accuracy),
             clarification_success_rate=_format_ratio(combined_metrics.clarification_success_rate),
             followup_resolution_rate=_format_ratio(combined_metrics.followup_resolution_rate),
+            soft_match_accept_rate=_format_ratio(combined_metrics.soft_match_accept_rate),
             false_clarifications=combined_metrics.false_clarifications,
             top_3_hit_rate=_format_ratio(combined_metrics.top_3_hit_rate),
             normalization_accuracy=_format_ratio(combined_metrics.normalization_sensitive_accuracy),
@@ -985,7 +1057,7 @@ def _parse_expected_faq_id(
     faq_lookup: dict[str, int],
     question: str,
 ) -> int | None:
-    if expected_status in {"escalated", "clarification_required"}:
+    if expected_status in {"escalated", "clarification_required", "out_of_domain"}:
         return None
 
     parsed_id = _optional_int(raw_value)

@@ -2,6 +2,7 @@ from app.config import Settings
 from app.services.chat import MatchCandidate, build_chat_response
 from app.services.conversations import InMemoryConversationStore
 from app.services.dialogue import DialogueChatService
+from app.schemas import ChatQueryResponse
 
 
 def test_build_chat_response_returns_match_when_score_is_high() -> None:
@@ -79,6 +80,33 @@ class StubChatService:
 
     def store_query(self, **payload) -> None:
         self.stored_queries.append(payload)
+
+
+class StubOutOfDomainChatService(StubChatService):
+    def answer_normalized_question(
+        self,
+        normalized_question: str,
+        *,
+        original_question: str,
+        top_k: int = 3,
+        conversation_id: str = "",
+        conversation_message_count: int = 0,
+        is_follow_up: bool = False,
+    ):
+        return ChatQueryResponse(
+            status="out_of_domain",
+            decision_type="out_of_domain",
+            answer="Ассистент помогает только по вопросам связи, интернета, оплаты, тарифа и личного кабинета.",
+            score=None,
+            matched_faq_id=None,
+            matched_question=None,
+            top_matches=[],
+            conversation_id=conversation_id,
+            conversation_message_count=conversation_message_count,
+            is_follow_up=is_follow_up,
+            ood_reason="off-topic pattern matched: jokes",
+            decision_path=["query considered out of telecom domain"],
+        )
 
 
 def build_settings() -> Settings:
@@ -227,6 +255,23 @@ def test_dialogue_service_returns_intent_hypotheses_for_escalation() -> None:
         "intent_hypothesis",
         "intent_hypothesis",
         "intent_hypothesis",
+    ]
+
+
+def test_dialogue_service_returns_ood_quick_replies() -> None:
+    service = DialogueChatService(
+        StubOutOfDomainChatService({"расскажи анекдот": []}),
+        InMemoryConversationStore(max_messages=6),
+        build_settings(),
+    )
+
+    response = service.answer_question("расскажи анекдот")
+
+    assert response.status == "out_of_domain"
+    assert [item.label for item in response.quick_replies] == [
+        "Не работает интернет",
+        "Как оплатить связь",
+        "Не могу войти в личный кабинет",
     ]
 
 

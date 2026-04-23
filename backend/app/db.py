@@ -46,6 +46,90 @@ def init_db() -> None:
         connection.execute(
             text(
                 "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS domain_score DOUBLE PRECISION"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS domain_reason TEXT"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS ood_reason TEXT"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS soft_match_used BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS soft_match_reason TEXT"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS top_score DOUBLE PRECISION"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS top2_score DOUBLE PRECISION"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS match_margin DOUBLE PRECISION"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS decision_path JSONB"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS domain_signals JSONB"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS domain_keyword_hits JSONB"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS offtopic_rule_hit VARCHAR(64)"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS garbage_rule_hit VARCHAR(64)"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS retrieval_candidates JSONB"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
                 "ADD COLUMN IF NOT EXISTS conversation_id VARCHAR(128)"
             )
         )

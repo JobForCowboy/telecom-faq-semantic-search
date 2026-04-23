@@ -46,6 +46,10 @@ def eval_dir() -> Path:
     return data_dir() / "eval"
 
 
+def domain_dir() -> Path:
+    return data_dir() / "domain"
+
+
 def _load_json_mapping(path: Path) -> dict[str, str]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
