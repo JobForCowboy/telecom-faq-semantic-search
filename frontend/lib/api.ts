@@ -5,19 +5,51 @@ export type RetrievalMatch = {
   score: number;
 };
 
+export type QuickReply = {
+  type: "clarification" | "intent_hypothesis" | "followup" | "fallback";
+  label: string;
+  value: string;
+};
+
+export type ConversationMessage = {
+  role: "user" | "assistant";
+  text: string;
+  created_at: string;
+  decision_type: "matched" | "clarification_required" | "escalated" | null;
+};
+
 export type ChatResponse = {
-  status: "matched" | "escalated";
+  status: "matched" | "clarification_required" | "escalated";
   answer: string;
   score: number | null;
   matched_faq_id: number | null;
   matched_question: string | null;
   top_matches: RetrievalMatch[];
+  conversation_id: string;
+  conversation_message_count: number;
+  is_follow_up: boolean;
+  clarification_question: string | null;
+  clarification_type: string | null;
+  quick_replies: QuickReply[];
 };
 
 export type RetrievalDebugResponse = ChatResponse & {
   original_question: string;
   normalized_question: string;
+  raw_query: string;
+  contextualized_query: string;
+  normalized_contextualized_query: string;
   threshold: number;
+  recent_messages: ConversationMessage[];
+  follow_up_detected: boolean;
+  clarification_triggered: boolean;
+  threshold_decision: "matched" | "clarification_required" | "escalated";
+};
+
+export type ResetConversationResponse = {
+  conversation_id: string;
+  cleared: boolean;
+  message_count: number;
 };
 
 export type FAQItem = {
@@ -26,6 +58,8 @@ export type FAQItem = {
   answer: string;
   variants: string[];
   is_active: boolean;
+  intent_tag: string | null;
+  intent_label: string | null;
   created_at: string;
   updated_at: string | null;
 };
@@ -46,6 +80,8 @@ type FAQPayload = {
   answer: string;
   variants: string[];
   is_active: boolean;
+  intent_tag?: string | null;
+  intent_label?: string | null;
 };
 
 const API_BASE_URL =
@@ -76,10 +112,22 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export function queryChat(question: string) {
+export function queryChat(question: string, conversationId?: string | null) {
   return apiFetch<ChatResponse>("/api/chat/query", {
     method: "POST",
-    body: JSON.stringify({ question })
+    body: JSON.stringify({
+      question,
+      ...(conversationId ? { conversation_id: conversationId } : {})
+    })
+  });
+}
+
+export function resetConversation(conversationId?: string | null) {
+  return apiFetch<ResetConversationResponse>("/api/chat/reset", {
+    method: "POST",
+    body: JSON.stringify(
+      conversationId ? { conversation_id: conversationId } : {}
+    )
   });
 }
 
@@ -111,9 +159,12 @@ export function fetchEscalations() {
   return apiFetch<EscalationItem[]>("/api/admin/escalations");
 }
 
-export function previewRetrieval(question: string) {
+export function previewRetrieval(question: string, conversationId?: string | null) {
   return apiFetch<RetrievalDebugResponse>("/api/admin/retrieval-debug", {
     method: "POST",
-    body: JSON.stringify({ question })
+    body: JSON.stringify({
+      question,
+      ...(conversationId ? { conversation_id: conversationId } : {})
+    })
   });
 }

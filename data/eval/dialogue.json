@@ -1,0 +1,22 @@
+[
+  {
+    "conversation": [
+      { "role": "user", "text": "не работает интернет" },
+      { "role": "assistant", "text": "Уточните, домашний или мобильный интернет?" },
+      { "role": "user", "text": "домашний" }
+    ],
+    "expected_status": "matched",
+    "expected_canonical_question": "Почему не работает домашний интернет?",
+    "case_type": "dialogue"
+  },
+  {
+    "conversation": [
+      { "role": "user", "text": "не работает интернет" },
+      { "role": "assistant", "text": "Уточните, домашний или мобильный интернет?" },
+      { "role": "user", "text": "мобильный" }
+    ],
+    "expected_status": "matched",
+    "expected_canonical_question": "Почему не работает мобильный интернет?",
+    "case_type": "dialogue"
+  }
+]

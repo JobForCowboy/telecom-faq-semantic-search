@@ -20,8 +20,8 @@ class StubApiClient:
         self,
         *,
         health_payload: dict | None = None,
-        query_responses: dict[str, dict] | None = None,
-        debug_responses: dict[str, dict] | None = None,
+        query_responses: dict[object, dict] | None = None,
+        debug_responses: dict[object, dict] | None = None,
         faqs: list[dict] | None = None,
     ) -> None:
         self.health_payload = health_payload or {
@@ -32,17 +32,34 @@ class StubApiClient:
         self.query_responses = query_responses or {}
         self.debug_responses = debug_responses or {}
         self.faqs = faqs or []
-        self.debug_calls: list[str] = []
+        self.debug_calls: list[tuple[str, str | None]] = []
+        self.reset_calls: list[str | None] = []
+        self._conversation_counter = 0
 
     def health(self) -> dict:
         return self.health_payload
 
-    def query_chat(self, question: str) -> dict:
+    def query_chat(self, question: str, conversation_id: str | None = None) -> dict:
+        key = (conversation_id, question)
+        if key in self.query_responses:
+            return self.query_responses[key]
         return self.query_responses[question]
 
-    def retrieval_debug(self, question: str) -> dict:
-        self.debug_calls.append(question)
+    def retrieval_debug(self, question: str, conversation_id: str | None = None) -> dict:
+        self.debug_calls.append((question, conversation_id))
+        key = (conversation_id, question)
+        if key in self.debug_responses:
+            return self.debug_responses[key]
         return self.debug_responses[question]
+
+    def reset_conversation(self, conversation_id: str | None = None) -> dict:
+        self.reset_calls.append(conversation_id)
+        self._conversation_counter += 1
+        return {
+            "conversation_id": f"conv_test_{self._conversation_counter}",
+            "cleared": True,
+            "message_count": 0,
+        }
 
     def list_faqs(self) -> list[dict]:
         return self.faqs
@@ -198,10 +215,73 @@ def test_evaluate_dataset_computes_metrics_and_debug_only_for_failures(tmp_path:
     assert report.metrics.top_3_hit_rate == 1.0
     assert report.metrics.normalization_sensitive_total == 1
     assert report.metrics.normalization_sensitive_passed == 0
-    assert client.debug_calls == ["Не могу зайти в лк", "Какая сегодня погода?"]
+    assert client.debug_calls == [
+        ("Не могу зайти в лк", None),
+        ("Какая сегодня погода?", None),
+    ]
     assert report.results[0].debug is None
     assert report.results[1].debug is not None
     assert report.results[1].response is not None
+
+
+def test_evaluate_dataset_supports_dialogue_cases(tmp_path: Path) -> None:
+    dataset_path = tmp_path / "dialogue.json"
+    dataset_path.write_text(
+        json.dumps(
+            [
+                {
+                    "conversation": [
+                        {"role": "user", "text": "не работает интернет"},
+                        {"role": "assistant", "text": "Уточните, домашний или мобильный интернет?"},
+                        {"role": "user", "text": "домашний"},
+                    ],
+                    "expected_status": "matched",
+                    "expected_faq_id": 1,
+                    "case_type": "dialogue",
+                }
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    client = StubApiClient(
+        query_responses={
+            ("conv_test_1", "не работает интернет"): {
+                "status": "clarification_required",
+                "answer": "Уточните, домашний или мобильный интернет?",
+                "matched_faq_id": None,
+                "matched_question": None,
+                "score": 0.78,
+                "top_matches": [
+                    {"faq_id": 1, "canonical_question": "Почему не работает домашний интернет?", "score": 0.78},
+                    {"faq_id": 13, "canonical_question": "Почему не работает мобильный интернет?", "score": 0.76},
+                ],
+            },
+            ("conv_test_1", "домашний"): {
+                "status": "matched",
+                "answer": "Проверьте роутер.",
+                "matched_faq_id": 1,
+                "matched_question": "инет дома не работает",
+                "score": 0.89,
+                "top_matches": [
+                    {"faq_id": 1, "canonical_question": "Почему не работает домашний интернет?", "score": 0.89},
+                ],
+            },
+        }
+    )
+
+    report = evaluate_dataset(client, dataset_path)
+
+    assert report.metrics.total_cases == 1
+    assert report.metrics.dialogue_cases == 1
+    assert report.metrics.dialogue_accuracy == 1.0
+    assert report.metrics.clarification_success_rate == 1.0
+    assert report.metrics.followup_resolution_rate == 1.0
+    assert report.results[0].case_mode == "dialogue"
+    assert report.results[0].expected_clarification_steps == 1
+    assert report.results[0].observed_clarification_steps == 1
+    assert report.results[0].followup_resolved is True
 
 
 def test_run_smoke_checks_health_positive_and_negative() -> None:
@@ -236,12 +316,17 @@ def test_write_reports_persists_json_and_markdown_summary(tmp_path: Path) -> Non
     results = [
         CaseResult(
             question="У меня пропал домашний интернет",
+            case_mode="single_turn",
             expected_status="matched",
             expected_faq_id=1,
             expected_canonical_question="Почему не работает домашний интернет?",
             case_type="core",
             notes=None,
             normalization_sensitive=False,
+            expected_clarification_steps=0,
+            observed_clarification_steps=0,
+            clarification_success=None,
+            followup_resolved=None,
             actual_status="matched",
             actual_faq_id=1,
             actual_canonical_question="Почему не работает домашний интернет?",
@@ -287,6 +372,10 @@ def test_render_markdown_summary_includes_combined_row() -> None:
                 "escalation_accuracy": None,
                 "false_escalations": 0,
                 "false_matches": 0,
+                "dialogue_accuracy": None,
+                "clarification_success_rate": None,
+                "followup_resolution_rate": None,
+                "false_clarifications": 0,
                 "top_3_hit_rate": 1.0,
                 "normalization_sensitive_accuracy": None,
             }
@@ -300,6 +389,10 @@ def test_render_markdown_summary_includes_combined_row() -> None:
             "escalation_accuracy": None,
             "false_escalations": 0,
             "false_matches": 0,
+            "dialogue_accuracy": None,
+            "clarification_success_rate": None,
+            "followup_resolution_rate": None,
+            "false_clarifications": 0,
             "top_3_hit_rate": 1.0,
             "normalization_sensitive_accuracy": None,
         },
@@ -307,5 +400,5 @@ def test_render_markdown_summary_includes_combined_row() -> None:
 
     markdown = render_markdown_summary(payload)
 
-    assert "| main | 1 | 1 | 1.000 | 1.000 | n/a | 0 | 0 | 1.000 | n/a |" in markdown
-    assert "| all | 1 | 1 | 1.000 | 1.000 | n/a | 0 | 0 | 1.000 | n/a |" in markdown
+    assert "| main | 1 | 1 | 1.000 | 1.000 | n/a | n/a | n/a | n/a | 0 | 1.000 | n/a |" in markdown
+    assert "| all | 1 | 1 | 1.000 | 1.000 | n/a | n/a | n/a | n/a | 0 | 1.000 | n/a |" in markdown

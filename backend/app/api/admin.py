@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from .deps import get_admin_service, get_chat_service
+from .deps import get_admin_service, get_dialogue_chat_service
 from ..schemas import (
     ChatQueryRequest,
     EscalationResponse,
@@ -10,7 +10,7 @@ from ..schemas import (
     RetrievalDebugResponse,
 )
 from ..services.admin import AdminService
-from ..services.chat import ChatService
+from ..services.dialogue import DialogueChatService
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -53,6 +53,6 @@ def list_escalations(service: AdminService = Depends(get_admin_service)) -> list
 @router.post("/retrieval-debug", response_model=RetrievalDebugResponse)
 def retrieval_debug(
     payload: ChatQueryRequest,
-    service: ChatService = Depends(get_chat_service),
+    service: DialogueChatService = Depends(get_dialogue_chat_service),
 ) -> RetrievalDebugResponse:
-    return service.preview_question(payload.question, top_k=3)
+    return service.preview_question(payload.question, conversation_id=payload.conversation_id, top_k=3)

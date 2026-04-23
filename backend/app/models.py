@@ -19,6 +19,8 @@ class FAQEntry(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     canonical_question: Mapped[str] = mapped_column("question", Text, unique=True, nullable=False)
     answer: Mapped[str] = mapped_column(Text, nullable=False)
+    intent_tag: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    intent_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # Keep the legacy embedding column populated for compatibility with existing databases.
     embedding: Mapped[list[float]] = mapped_column(Vector(settings.embedding_dim), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -57,9 +59,12 @@ class UserQuery(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
     normalized_question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    contextualized_question_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     response_text: Mapped[str] = mapped_column(Text, nullable=False)
     similarity_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    decision_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     matched_faq_id: Mapped[int | None] = mapped_column(ForeignKey("faqs.id"), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

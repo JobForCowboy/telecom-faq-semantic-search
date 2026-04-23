@@ -31,3 +31,33 @@ def init_db() -> None:
                 "ADD COLUMN IF NOT EXISTS normalized_question_text TEXT NOT NULL DEFAULT ''"
             )
         )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS contextualized_question_text TEXT"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS decision_type VARCHAR(32)"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS user_queries "
+                "ADD COLUMN IF NOT EXISTS conversation_id VARCHAR(128)"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS faqs "
+                "ADD COLUMN IF NOT EXISTS intent_tag VARCHAR(64)"
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE IF EXISTS faqs "
+                "ADD COLUMN IF NOT EXISTS intent_label VARCHAR(120)"
+            )
+        )

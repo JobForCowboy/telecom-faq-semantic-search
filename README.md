@@ -2,6 +2,13 @@
 
 End-to-end MVP for telecom support where the user asks a question in a chat UI and the system returns the closest prepared FAQ answer using semantic retrieval over local embeddings.
 
+The current version also supports short dialogue mode without changing the retrieval-first core:
+
+- short in-memory conversation context keyed by `conversation_id`
+- retrieval-aware follow-up handling for brief turns like `домашний`
+- lightweight clarification questions for ambiguous retrieval results
+- explicit reset flow in the UI and API
+
 ## Stack
 
 - `Next.js 15` frontend with chat, FAQ admin, retrieval debug, and escalation review pages.
@@ -18,17 +25,21 @@ The system is strengthened through:
 - a retrieval-friendly knowledge base with canonical FAQ entries and many user-like variants
 - a shared normalization pipeline for query, seed, admin updates, and eval
 - a larger eval set with abbreviations, typos, colloquial requests, short queries, and irrelevant prompts
+- a short-context dialogue layer for clarification and follow-up resolution
 - an escalation review loop that feeds missed queries back into the KB
 
 ### How retrieval works
 
 1. The user sends a raw question from the chat UI.
-2. FastAPI normalizes the text.
-3. The backend creates an embedding from the normalized text.
-4. The query is matched against `faq_variants` in `pgvector`.
-5. The best variant resolves to one canonical FAQ entry.
-6. If the score is above the configured threshold, the canonical answer is returned.
-7. Otherwise, the query is stored as an escalation with both raw and normalized text.
+2. FastAPI loads recent dialogue context for `conversation_id`.
+3. For short follow-up turns, the backend builds a contextualized retrieval query.
+4. FastAPI normalizes the contextualized query.
+5. The backend creates an embedding from the normalized text.
+6. The query is matched against `faq_variants` in `pgvector`.
+7. If the top candidates are ambiguous, the backend can return a clarification question.
+8. Otherwise the best variant resolves to one canonical FAQ entry.
+9. If the score is above the configured threshold, the canonical answer is returned.
+10. Otherwise, the query is stored as an escalation with both raw and normalized contextualized text.
 
 ### How normalization works
 
@@ -148,13 +159,15 @@ Seed bootstrap is idempotent for canonical FAQs from the seed file:
 Evaluation is API-based. The backend HTTP API is the single evaluation surface:
 
 - `GET /health` for readiness
-- `POST /api/chat/query` for smoke and pass/fail checks
+- `POST /api/chat/query` for smoke, single-turn, and dialogue checks
+- `POST /api/chat/reset` for dialogue eval setup
 - `POST /api/admin/retrieval-debug` for optional fail-case analysis
 
 Datasets:
 
 - [data/eval/main.json](/home/kia/Documents/work-7rl/AILAB/telecom-faq-semantic-search/data/eval/main.json)
 - [data/eval/hard_cases.json](/home/kia/Documents/work-7rl/AILAB/telecom-faq-semantic-search/data/eval/hard_cases.json)
+- [data/eval/dialogue.json](/home/kia/Documents/work-7rl/AILAB/telecom-faq-semantic-search/data/eval/dialogue.json)
 
 Target dataset shape:
 
@@ -169,6 +182,21 @@ Target dataset shape:
 }
 ```
 
+Dialogue dataset shape:
+
+```json
+{
+  "conversation": [
+    { "role": "user", "text": "не работает интернет" },
+    { "role": "assistant", "text": "Уточните, домашний или мобильный интернет?" },
+    { "role": "user", "text": "домашний" }
+  ],
+  "expected_status": "matched",
+  "expected_canonical_question": "Почему не работает домашний интернет?",
+  "case_type": "dialogue"
+}
+```
+
 The runner is backward-compatible with the older dataset fields:
 
 - `query`
@@ -180,6 +208,7 @@ Coverage includes:
 - standard matched cases
 - hard cases with abbreviations, typos, and colloquial phrasing
 - irrelevant prompts that should escalate
+- short dialogue flows with clarification + follow-up resolution
 - normalization-sensitive slices such as `лк -> личный кабинет` and `инет -> интернет`
 
 Smoke check:
@@ -228,6 +257,10 @@ Reported metrics include:
 - `accuracy`
 - `matched_accuracy`
 - `escalation_accuracy`
+- `dialogue_accuracy`
+- `clarification_success_rate`
+- `followup_resolution_rate`
+- `false_clarifications`
 - `false_escalations`
 - `false_matches`
 - `top_3_hit_rate`
@@ -241,13 +274,18 @@ The CLI exits with a non-zero status when smoke fails or when any eval case fail
 
 `/admin/debug` shows:
 
+- conversation id
+- recent messages
 - original query
-- normalized query
+- contextualized query
+- normalized contextualized query
 - threshold
 - top-3 matches
 - matched variant
 - canonical FAQ
 - score
+- follow-up detection
+- clarification trigger
 - final threshold decision
 
 This is intended as a data improvement tool, not just a demo screen.
@@ -267,6 +305,7 @@ This project is intentionally improved through data and preprocessing, not throu
 ## API Surface
 
 - `POST /api/chat/query`
+- `POST /api/chat/reset`
 - `GET /api/admin/faqs`
 - `POST /api/admin/faqs`
 - `PUT /api/admin/faqs/{faq_id}`
@@ -275,7 +314,7 @@ This project is intentionally improved through data and preprocessing, not throu
 - `GET /api/admin/escalations`
 - `GET /health`
 
-`POST /api/admin/retrieval-debug` returns debug-only retrieval metadata including raw query, normalized query, threshold, and top matches.
+`POST /api/admin/retrieval-debug` returns debug-only retrieval metadata including recent messages, raw query, contextualized query, normalized contextualized query, threshold, and top matches.
 
 ## Tests
 

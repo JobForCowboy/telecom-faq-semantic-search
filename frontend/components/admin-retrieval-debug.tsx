@@ -12,8 +12,19 @@ function formatScore(score: number | null) {
   return score.toFixed(3);
 }
 
+function formatStatus(status: RetrievalDebugResponse["status"]) {
+  if (status === "matched") {
+    return "Matched";
+  }
+  if (status === "clarification_required") {
+    return "Clarification";
+  }
+  return "Escalated";
+}
+
 export function AdminRetrievalDebug() {
   const [question, setQuestion] = useState("У меня дома пропал интернет");
+  const [conversationId, setConversationId] = useState("");
   const [result, setResult] = useState<RetrievalDebugResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -21,11 +32,18 @@ export function AdminRetrievalDebug() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const query = params.get("query");
+    const conversation = params.get("conversation_id");
     if (!query) {
+      if (conversation) {
+        setConversationId(conversation);
+      }
       return;
     }
 
     setQuestion(query);
+    if (conversation) {
+      setConversationId(conversation);
+    }
     setResult(null);
     setError(null);
   }, []);
@@ -40,7 +58,7 @@ export function AdminRetrievalDebug() {
     setError(null);
     startTransition(async () => {
       try {
-        const response = await previewRetrieval(trimmed);
+        const response = await previewRetrieval(trimmed, conversationId || undefined);
         setResult(response);
       } catch (submitError) {
         const detail =
@@ -78,9 +96,19 @@ export function AdminRetrievalDebug() {
               rows={4}
               value={question}
             />
+            <label className="fieldLabel" htmlFor="debug-conversation-id">
+              Conversation ID
+            </label>
+            <input
+              id="debug-conversation-id"
+              onChange={(event) => setConversationId(event.target.value)}
+              placeholder="Например: conv_..."
+              value={conversationId}
+            />
             <div className="formFooter">
               <span className="helperText">
-                Backend вернёт top-3 кандидата и финальный статус threshold decision.
+                Backend вернёт contextualized query, recent messages, top-3 кандидата и
+                финальный threshold decision.
               </span>
               <button className="primaryButton" disabled={isPending} type="submit">
                 {isPending ? "Ищем..." : "Прогнать retrieval"}
@@ -97,9 +125,15 @@ export function AdminRetrievalDebug() {
             </div>
             {result ? (
               <span
-                className={`statusBadge ${result.status === "matched" ? "success" : "warning"}`}
+                className={`statusBadge ${
+                  result.status === "matched"
+                    ? "success"
+                    : result.status === "escalated"
+                      ? "warning"
+                      : ""
+                }`}
               >
-                {result.status === "matched" ? "Matched" : "Escalated"}
+                {formatStatus(result.status)}
               </span>
             ) : null}
           </div>
@@ -120,9 +154,21 @@ export function AdminRetrievalDebug() {
                   <span>Нормализованный запрос</span>
                   <strong>{result.normalized_question}</strong>
                 </div>
+                <div className="metaItem wide">
+                  <span>Contextualized query</span>
+                  <strong>{result.contextualized_query}</strong>
+                </div>
+                <div className="metaItem wide">
+                  <span>Normalized contextualized query</span>
+                  <strong>{result.normalized_contextualized_query}</strong>
+                </div>
                 <div className="metaItem">
                   <span>Статус</span>
                   <strong>{result.status}</strong>
+                </div>
+                <div className="metaItem">
+                  <span>Threshold decision</span>
+                  <strong>{result.threshold_decision}</strong>
                 </div>
                 <div className="metaItem">
                   <span>Score</span>
@@ -132,9 +178,29 @@ export function AdminRetrievalDebug() {
                   <span>Threshold</span>
                   <strong>{formatScore(result.threshold)}</strong>
                 </div>
+                <div className="metaItem">
+                  <span>Follow-up</span>
+                  <strong>{result.follow_up_detected ? "Да" : "Нет"}</strong>
+                </div>
+                <div className="metaItem">
+                  <span>Clarification</span>
+                  <strong>{result.clarification_triggered ? "Да" : "Нет"}</strong>
+                </div>
+                <div className="metaItem wide">
+                  <span>Conversation ID</span>
+                  <strong>{result.conversation_id || "Не передан"}</strong>
+                </div>
                 <div className="metaItem wide">
                   <span>Лучшее совпадение</span>
                   <strong>{result.matched_question ?? "Нет кандидата"}</strong>
+                </div>
+                <div className="metaItem wide">
+                  <span>Quick replies</span>
+                  <strong>
+                    {result.quick_replies.length
+                      ? result.quick_replies.map((reply) => `${reply.label} (${reply.type})`).join(" · ")
+                      : "Нет"}
+                  </strong>
                 </div>
               </div>
             </div>
@@ -145,6 +211,46 @@ export function AdminRetrievalDebug() {
             </div>
           )}
         </section>
+      </section>
+
+      <section className="surfaceCard tableCard">
+        <div className="panelHeading">
+          <div>
+            <span className="sectionTag">Recent Messages</span>
+            <h2>Контекст диалога</h2>
+          </div>
+        </div>
+
+        <div className="tableWrap">
+          <table className="dataTable">
+            <thead>
+              <tr>
+                <th>Role</th>
+                <th>Text</th>
+                <th>Decision</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {result?.recent_messages.length ? (
+                result.recent_messages.map((message, index) => (
+                  <tr key={`${message.role}-${index}-${message.created_at}`}>
+                    <td>{message.role}</td>
+                    <td className="primaryCell">{message.text}</td>
+                    <td>{message.decision_type ?? "n/a"}</td>
+                    <td>{new Date(message.created_at).toLocaleString()}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="emptyTable" colSpan={4}>
+                    Нет сохранённого dialogue context для этого preview.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="surfaceCard tableCard">

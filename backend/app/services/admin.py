@@ -35,6 +35,8 @@ class AdminService:
             canonical_question=canonical_question,
             answer=payload.answer.strip(),
             is_active=payload.is_active,
+            intent_tag=self._normalize_optional_text(payload.intent_tag),
+            intent_label=self._normalize_optional_text(payload.intent_label),
             embedding=self._embed(self.normalizer.normalize(canonical_question)),
         )
         faq.variants = variants
@@ -60,6 +62,10 @@ class AdminService:
             faq.answer = updates["answer"].strip()
         if "is_active" in updates and updates["is_active"] is not None:
             faq.is_active = updates["is_active"]
+        if "intent_tag" in updates:
+            faq.intent_tag = self._normalize_optional_text(updates["intent_tag"])
+        if "intent_label" in updates:
+            faq.intent_label = self._normalize_optional_text(updates["intent_label"])
         if "variants" in updates and updates["variants"] is not None:
             self._replace_variants(faq, canonical_question, updates["variants"])
         elif "canonical_question" in updates and updates["canonical_question"] is not None:
@@ -91,10 +97,13 @@ class AdminService:
                 id=row.id,
                 question_text=row.question_text,
                 normalized_question_text=row.normalized_question_text,
+                contextualized_question_text=row.contextualized_question_text,
                 response_text=row.response_text,
                 score=row.similarity_score,
                 matched_faq_id=row.matched_faq_id,
                 matched_canonical_question=row.faq_entry.canonical_question if row.faq_entry else None,
+                conversation_id=row.conversation_id,
+                decision_type=row.decision_type,
                 created_at=row.created_at,
             )
             for row in escalations
@@ -113,9 +122,17 @@ class AdminService:
             answer=faq.answer,
             variants=[variant.question for variant in faq.variants],
             is_active=faq.is_active,
+            intent_tag=faq.intent_tag,
+            intent_label=faq.intent_label,
             created_at=faq.created_at,
             updated_at=faq.updated_at,
         )
+
+    def _normalize_optional_text(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
     def _build_variant_rows(self, canonical_question: str, variants: list[str]) -> list[FAQVariant]:
         prepared = prepare_variants(canonical_question, variants, self.normalizer)

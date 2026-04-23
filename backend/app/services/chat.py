@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -17,12 +19,18 @@ class MatchCandidate:
     matched_question: str
     answer: str
     score: float
+    intent_tag: str | None = None
+    intent_label: str | None = None
 
 
 def build_chat_response(
     candidates: list[MatchCandidate],
     threshold: float,
     fallback_message: str,
+    *,
+    conversation_id: str = "",
+    conversation_message_count: int = 0,
+    is_follow_up: bool = False,
 ) -> ChatQueryResponse:
     candidate = candidates[0] if candidates else None
     top_matches = [
@@ -42,6 +50,9 @@ def build_chat_response(
             matched_faq_id=candidate.faq_id if candidate else None,
             matched_question=candidate.matched_question if candidate else None,
             top_matches=top_matches,
+            conversation_id=conversation_id,
+            conversation_message_count=conversation_message_count,
+            is_follow_up=is_follow_up,
         )
 
     return ChatQueryResponse(
@@ -51,6 +62,9 @@ def build_chat_response(
         matched_faq_id=candidate.faq_id,
         matched_question=candidate.matched_question,
         top_matches=top_matches,
+        conversation_id=conversation_id,
+        conversation_message_count=conversation_message_count,
+        is_follow_up=is_follow_up,
     )
 
 
@@ -67,34 +81,60 @@ class ChatService:
         self.normalizer = get_text_normalizer()
 
     def answer_question(self, question: str) -> ChatQueryResponse:
-        original_question, normalized_question = self._prepare_question(question)
-        candidates = self._find_top_matches(normalized_question)
-        response = build_chat_response(
-            candidates=candidates,
-            threshold=self.settings.similarity_threshold,
-            fallback_message=self.settings.fallback_message,
+        original_question, normalized_question = self.prepare_question(question)
+        response = self.answer_normalized_question(
+            normalized_question,
+            original_question=original_question,
         )
-        self._store_query(original_question, normalized_question, response)
+        self.store_query(
+            question=original_question,
+            normalized_question=normalized_question,
+            contextualized_question=original_question,
+            response=response,
+        )
         return response
 
-    def preview_question(self, question: str, top_k: int = 3) -> RetrievalDebugResponse:
-        original_question, normalized_question = self._prepare_question(question)
-        candidates = self._find_top_matches(normalized_question, top_k=top_k)
-        response = build_chat_response(
+    def answer_normalized_question(
+        self,
+        normalized_question: str,
+        *,
+        original_question: str,
+        top_k: int = 3,
+        conversation_id: str = "",
+        conversation_message_count: int = 0,
+        is_follow_up: bool = False,
+    ) -> ChatQueryResponse:
+        candidates = self.find_top_matches(normalized_question, top_k=top_k)
+        return build_chat_response(
             candidates=candidates,
             threshold=self.settings.similarity_threshold,
             fallback_message=self.settings.fallback_message,
+            conversation_id=conversation_id,
+            conversation_message_count=conversation_message_count,
+            is_follow_up=is_follow_up,
+        )
+
+    def preview_question(self, question: str, top_k: int = 3) -> RetrievalDebugResponse:
+        original_question, normalized_question = self.prepare_question(question)
+        response = self.answer_normalized_question(
+            normalized_question,
+            original_question=original_question,
+            top_k=top_k,
         )
         return RetrievalDebugResponse(
             original_question=original_question,
             normalized_question=normalized_question,
+            raw_query=original_question,
+            contextualized_query=original_question,
+            normalized_contextualized_query=normalized_question,
             threshold=self.settings.similarity_threshold,
+            threshold_decision=response.status,
             **response.model_dump(),
         )
 
-    def _find_top_matches(self, question: str, top_k: int = 3) -> list[MatchCandidate]:
+    def find_top_matches(self, normalized_question: str, top_k: int = 3) -> list[MatchCandidate]:
         try:
-            vector = self.embedder_manager.embed(question)
+            vector = self.embedder_manager.embed(normalized_question)
         except EmbedderUnavailableError:
             raise
 
@@ -121,28 +161,35 @@ class ChatService:
                     matched_question=variant.question,
                     answer=faq_entry.answer,
                     score=float(score),
+                    intent_tag=faq_entry.intent_tag,
+                    intent_label=faq_entry.intent_label,
                 )
             )
             if len(candidates) == top_k:
                 break
         return candidates
 
-    def _prepare_question(self, question: str) -> tuple[str, str]:
+    def prepare_question(self, question: str) -> tuple[str, str]:
         original_question = question.strip()
         return original_question, self.normalizer.normalize(original_question)
 
-    def _store_query(
+    def store_query(
         self,
+        *,
         question: str,
         normalized_question: str,
+        contextualized_question: str | None,
         response: ChatQueryResponse,
     ) -> None:
         record = UserQuery(
             question_text=question,
             normalized_question_text=normalized_question,
+            contextualized_question_text=contextualized_question,
             response_text=response.answer,
             similarity_score=response.score,
             status=response.status,
+            decision_type=response.status,
+            conversation_id=response.conversation_id or None,
             matched_faq_id=response.matched_faq_id,
         )
         self.session.add(record)

@@ -68,6 +68,8 @@ def bootstrap_faqs(
                 canonical_question=canonical_question,
                 answer=entry["answer"],
                 is_active=entry["is_active"],
+                intent_tag=entry["intent_tag"],
+                intent_label=entry["intent_label"],
                 embedding=embedder_manager.embed(normalizer.normalize(canonical_question)),
             )
             faq.variants = build_variant_rows(canonical_question, entry["variants"], embedder_manager)
@@ -75,6 +77,8 @@ def bootstrap_faqs(
             faq = existing
             faq.answer = entry["answer"]
             faq.is_active = entry["is_active"]
+            faq.intent_tag = entry["intent_tag"]
+            faq.intent_label = entry["intent_label"]
             faq.embedding = embedder_manager.embed(normalizer.normalize(canonical_question))
             replace_variants(session, faq, canonical_question, entry["variants"], embedder_manager)
         session.add(faq)
@@ -113,6 +117,8 @@ def replace_variants(
 def normalize_seed_entry(entry: dict[str, object]) -> dict[str, object]:
     canonical_question = str(entry.get("canonical_question") or entry.get("question") or "").strip()
     answer = str(entry.get("answer") or "").strip()
+    intent_tag = str(entry.get("intent_tag") or "").strip() or None
+    intent_label = str(entry.get("intent_label") or "").strip() or None
     raw_variants = entry.get("variants")
     variants = raw_variants if isinstance(raw_variants, list) else []
     prepared_variants = prepare_variants(canonical_question, [str(item) for item in variants])
@@ -125,6 +131,8 @@ def normalize_seed_entry(entry: dict[str, object]) -> dict[str, object]:
         "answer": answer,
         "variants": [variant.question for variant in prepared_variants],
         "is_active": bool(entry.get("is_active", True)),
+        "intent_tag": intent_tag,
+        "intent_label": intent_label,
     }
 
 

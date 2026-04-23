@@ -36,10 +36,13 @@ class ApiClientProtocol(Protocol):
     def health(self) -> dict[str, Any]:
         raise NotImplementedError
 
-    def query_chat(self, question: str) -> dict[str, Any]:
+    def query_chat(self, question: str, conversation_id: str | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
-    def retrieval_debug(self, question: str) -> dict[str, Any]:
+    def retrieval_debug(self, question: str, conversation_id: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def reset_conversation(self, conversation_id: str | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
     def list_faqs(self) -> list[dict[str, Any]]:
@@ -60,11 +63,23 @@ class HttpApiClient:
     def health(self) -> dict[str, Any]:
         return self._request_json("GET", "/health")
 
-    def query_chat(self, question: str) -> dict[str, Any]:
-        return self._request_json("POST", f"{self.api_prefix}/chat/query", {"question": question})
+    def query_chat(self, question: str, conversation_id: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"question": question}
+        if conversation_id:
+            payload["conversation_id"] = conversation_id
+        return self._request_json("POST", f"{self.api_prefix}/chat/query", payload)
 
-    def retrieval_debug(self, question: str) -> dict[str, Any]:
-        return self._request_json("POST", f"{self.api_prefix}/admin/retrieval-debug", {"question": question})
+    def retrieval_debug(self, question: str, conversation_id: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {"question": question}
+        if conversation_id:
+            payload["conversation_id"] = conversation_id
+        return self._request_json("POST", f"{self.api_prefix}/admin/retrieval-debug", payload)
+
+    def reset_conversation(self, conversation_id: str | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if conversation_id:
+            payload["conversation_id"] = conversation_id
+        return self._request_json("POST", f"{self.api_prefix}/chat/reset", payload)
 
     def list_faqs(self) -> list[dict[str, Any]]:
         payload = self._request_json("GET", f"{self.api_prefix}/admin/faqs")
@@ -102,8 +117,15 @@ class HttpApiClient:
 
 
 @dataclass(frozen=True)
+class ConversationTurn:
+    role: str
+    text: str
+
+
+@dataclass(frozen=True)
 class EvalCase:
-    question: str
+    question: str | None
+    conversation: tuple[ConversationTurn, ...] | None
     expected_status: str
     expected_faq_id: int | None
     expected_canonical_question: str | None
@@ -111,16 +133,34 @@ class EvalCase:
     notes: str | None = None
     normalization_sensitive: bool = False
 
+    @property
+    def case_mode(self) -> str:
+        return "dialogue" if self.conversation else "single_turn"
+
+    @property
+    def display_question(self) -> str:
+        if self.question:
+            return self.question
+        if not self.conversation:
+            return ""
+        last_user = next((turn.text for turn in reversed(self.conversation) if turn.role == "user"), "")
+        return last_user
+
 
 @dataclass(frozen=True)
 class CaseResult:
     question: str
+    case_mode: str
     expected_status: str
     expected_faq_id: int | None
     expected_canonical_question: str | None
     case_type: str
     notes: str | None
     normalization_sensitive: bool
+    expected_clarification_steps: int
+    observed_clarification_steps: int
+    clarification_success: bool | None
+    followup_resolved: bool | None
     actual_status: str | None
     actual_faq_id: int | None
     actual_canonical_question: str | None
@@ -129,18 +169,23 @@ class CaseResult:
     top_matches: list[dict[str, Any]]
     passed: bool
     failure_reason: str | None
-    response: dict[str, Any] | None = None
+    response: dict[str, Any] | list[dict[str, Any]] | None = None
     debug: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "question": self.question,
+            "case_mode": self.case_mode,
             "expected_status": self.expected_status,
             "expected_faq_id": self.expected_faq_id,
             "expected_canonical_question": self.expected_canonical_question,
             "case_type": self.case_type,
             "notes": self.notes,
             "normalization_sensitive": self.normalization_sensitive,
+            "expected_clarification_steps": self.expected_clarification_steps,
+            "observed_clarification_steps": self.observed_clarification_steps,
+            "clarification_success": self.clarification_success,
+            "followup_resolved": self.followup_resolved,
             "actual_status": self.actual_status,
             "actual_faq_id": self.actual_faq_id,
             "actual_canonical_question": self.actual_canonical_question,
@@ -173,6 +218,13 @@ class DatasetMetrics:
     normalization_sensitive_total: int
     normalization_sensitive_passed: int
     normalization_sensitive_accuracy: float | None
+    dialogue_cases: int
+    dialogue_passed: int
+    dialogue_accuracy: float | None
+    clarification_cases: int
+    clarification_success_rate: float | None
+    followup_resolution_rate: float | None
+    false_clarifications: int
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -193,6 +245,13 @@ class DatasetMetrics:
             "normalization_sensitive_total": self.normalization_sensitive_total,
             "normalization_sensitive_passed": self.normalization_sensitive_passed,
             "normalization_sensitive_accuracy": self.normalization_sensitive_accuracy,
+            "dialogue_cases": self.dialogue_cases,
+            "dialogue_passed": self.dialogue_passed,
+            "dialogue_accuracy": self.dialogue_accuracy,
+            "clarification_cases": self.clarification_cases,
+            "clarification_success_rate": self.clarification_success_rate,
+            "followup_resolution_rate": self.followup_resolution_rate,
+            "false_clarifications": self.false_clarifications,
         }
 
 
@@ -297,13 +356,17 @@ def normalize_eval_case(
     faq_lookup: dict[str, int],
     default_case_type: str,
 ) -> EvalCase:
-    question = str(row.get("question") or row.get("query") or "").strip()
-    if not question:
-        raise EvalError(f"Eval row is missing question/query: {row}")
+    question = _optional_text(row.get("question") or row.get("query"))
+    conversation = _parse_conversation(row.get("conversation"))
+    if not question and not conversation:
+        raise EvalError(f"Eval row is missing question/query or conversation: {row}")
 
     expected_status = str(row.get("expected_status") or "").strip()
-    if expected_status not in {"matched", "escalated"}:
-        raise EvalError(f"Unsupported expected_status for question '{question}': {expected_status}")
+    if expected_status not in {"matched", "clarification_required", "escalated"}:
+        raise EvalError(
+            f"Unsupported expected_status for question '{question or (conversation[-1].text if conversation else '')}': "
+            f"{expected_status}"
+        )
 
     expected_canonical_question = _optional_text(
         row.get("expected_canonical_question") or row.get("expected_canonical")
@@ -313,7 +376,7 @@ def normalize_eval_case(
         expected_status=expected_status,
         expected_canonical_question=expected_canonical_question,
         faq_lookup=faq_lookup,
-        question=question,
+        question=question or (conversation[-1].text if conversation else ""),
     )
 
     case_type = _optional_text(row.get("case_type") or row.get("category")) or default_case_type
@@ -324,6 +387,7 @@ def normalize_eval_case(
 
     return EvalCase(
         question=question,
+        conversation=conversation,
         expected_status=expected_status,
         expected_faq_id=expected_faq_id,
         expected_canonical_question=expected_canonical_question,
@@ -340,7 +404,16 @@ def evaluate_case(
     with_debug: bool = False,
     save_response: bool = False,
 ) -> CaseResult:
-    response = api_client.query_chat(case.question)
+    if case.conversation:
+        return evaluate_dialogue_case(
+            api_client,
+            case,
+            with_debug=with_debug,
+            save_response=save_response,
+        )
+
+    question = case.question or ""
+    response = api_client.query_chat(question)
     top_matches = response.get("top_matches")
     top_matches_list = top_matches if isinstance(top_matches, list) else []
     actual_status = _optional_text(response.get("status"))
@@ -353,18 +426,23 @@ def evaluate_case(
     debug_payload = None
     if with_debug and not passed:
         try:
-            debug_payload = api_client.retrieval_debug(case.question)
+            debug_payload = api_client.retrieval_debug(question)
         except EvalError as exc:
             debug_payload = {"error": str(exc)}
 
     return CaseResult(
-        question=case.question,
+        question=question,
+        case_mode=case.case_mode,
         expected_status=case.expected_status,
         expected_faq_id=case.expected_faq_id,
         expected_canonical_question=case.expected_canonical_question,
         case_type=case.case_type,
         notes=case.notes,
         normalization_sensitive=case.normalization_sensitive,
+        expected_clarification_steps=0,
+        observed_clarification_steps=1 if actual_status == "clarification_required" else 0,
+        clarification_success=None,
+        followup_resolved=None,
         actual_status=actual_status,
         actual_faq_id=actual_faq_id,
         actual_canonical_question=actual_canonical_question,
@@ -378,12 +456,108 @@ def evaluate_case(
     )
 
 
+def evaluate_dialogue_case(
+    api_client: ApiClientProtocol,
+    case: EvalCase,
+    *,
+    with_debug: bool = False,
+    save_response: bool = False,
+) -> CaseResult:
+    if not case.conversation:
+        raise EvalError("Dialogue evaluation requires conversation turns.")
+
+    reset_payload = api_client.reset_conversation()
+    conversation_id = _optional_text(reset_payload.get("conversation_id"))
+    if not conversation_id:
+        raise EvalError("Reset conversation response is missing conversation_id.")
+
+    responses: list[dict[str, Any]] = []
+    clarification_expected = 0
+    clarification_observed = 0
+    clarification_success = True
+    final_response: dict[str, Any] | None = None
+
+    turns = case.conversation
+    for index, turn in enumerate(turns):
+        if turn.role != "user":
+            continue
+
+        response = api_client.query_chat(turn.text, conversation_id=conversation_id)
+        responses.append(response)
+        final_response = response
+
+        next_turn = turns[index + 1] if index + 1 < len(turns) else None
+        if next_turn and next_turn.role == "assistant":
+            clarification_expected += 1
+            actual_answer = _optional_text(response.get("answer")) or ""
+            actual_status = _optional_text(response.get("status"))
+            if actual_status == "clarification_required":
+                clarification_observed += 1
+            if actual_status != "clarification_required" or not _text_matches_expected(actual_answer, next_turn.text):
+                clarification_success = False
+
+    if final_response is None:
+        raise EvalError("Dialogue case did not produce any user turns.")
+
+    top_matches = final_response.get("top_matches")
+    top_matches_list = top_matches if isinstance(top_matches, list) else []
+    actual_status = _optional_text(final_response.get("status"))
+    actual_faq_id = _optional_int(final_response.get("matched_faq_id"))
+    actual_canonical_question = None
+    if top_matches_list:
+        actual_canonical_question = _optional_text(top_matches_list[0].get("canonical_question"))
+
+    passed, failure_reason = determine_case_outcome(case, actual_status, actual_faq_id)
+    if clarification_expected and not clarification_success and failure_reason is None:
+        passed = False
+        failure_reason = "clarification_mismatch"
+
+    debug_payload = None
+    if with_debug and not passed:
+        try:
+            debug_payload = _build_dialogue_debug(api_client, case.conversation)
+        except EvalError as exc:
+            debug_payload = {"error": str(exc)}
+
+    followup_resolved = None
+    if clarification_expected and case.expected_status == "matched":
+        followup_resolved = actual_status == "matched" and actual_faq_id == case.expected_faq_id
+
+    final_user_question = next((turn.text for turn in reversed(turns) if turn.role == "user"), "")
+    return CaseResult(
+        question=final_user_question,
+        case_mode=case.case_mode,
+        expected_status=case.expected_status,
+        expected_faq_id=case.expected_faq_id,
+        expected_canonical_question=case.expected_canonical_question,
+        case_type=case.case_type,
+        notes=case.notes,
+        normalization_sensitive=case.normalization_sensitive,
+        expected_clarification_steps=clarification_expected,
+        observed_clarification_steps=clarification_observed,
+        clarification_success=clarification_success if clarification_expected else None,
+        followup_resolved=followup_resolved,
+        actual_status=actual_status,
+        actual_faq_id=actual_faq_id,
+        actual_canonical_question=actual_canonical_question,
+        score=_optional_float(final_response.get("score")),
+        matched_question=_optional_text(final_response.get("matched_question")),
+        top_matches=top_matches_list,
+        passed=passed,
+        failure_reason=failure_reason,
+        response=responses if save_response else None,
+        debug=debug_payload,
+    )
+
+
 def determine_case_outcome(
     case: EvalCase,
     actual_status: str | None,
     actual_faq_id: int | None,
 ) -> tuple[bool, str | None]:
     if case.expected_status == "matched":
+        if actual_status == "clarification_required":
+            return False, "clarification_instead_of_match"
         if actual_status == "escalated":
             return False, "false_escalation"
         if actual_status != "matched":
@@ -392,8 +566,19 @@ def determine_case_outcome(
             return False, "wrong_faq_match"
         return True, None
 
+    if case.expected_status == "clarification_required":
+        if actual_status == "clarification_required":
+            return True, None
+        if actual_status == "matched":
+            return False, "false_match"
+        if actual_status == "escalated":
+            return False, "false_escalation"
+        return False, "unexpected_status"
+
     if actual_status == "escalated":
         return True, None
+    if actual_status == "clarification_required":
+        return False, "false_clarification"
     if actual_status == "matched":
         return False, "false_match"
     return False, "unexpected_status"
@@ -437,10 +622,19 @@ def compute_metrics(dataset_name: str, results: list[CaseResult]) -> DatasetMetr
     escalated_results = [result for result in results if result.expected_status == "escalated"]
     escalated_passed = sum(result.passed for result in escalated_results)
     false_matches = sum(result.failure_reason == "false_match" for result in escalated_results)
+    false_clarifications = sum(result.failure_reason == "false_clarification" for result in results)
 
     top_3_hits = sum(_is_top_3_hit(result) for result in matched_results)
     normalization_results = [result for result in results if result.normalization_sensitive]
     normalization_passed = sum(result.passed for result in normalization_results)
+    dialogue_results = [result for result in results if result.case_mode == "dialogue"]
+    dialogue_passed = sum(result.passed for result in dialogue_results)
+    clarification_results = [result for result in dialogue_results if result.expected_clarification_steps > 0]
+    clarification_successes = sum(bool(result.clarification_success) for result in clarification_results)
+    followup_results = [
+        result for result in clarification_results if result.followup_resolved is not None
+    ]
+    followup_resolved = sum(bool(result.followup_resolved) for result in followup_results)
 
     return DatasetMetrics(
         dataset_name=dataset_name,
@@ -460,6 +654,13 @@ def compute_metrics(dataset_name: str, results: list[CaseResult]) -> DatasetMetr
         normalization_sensitive_total=len(normalization_results),
         normalization_sensitive_passed=normalization_passed,
         normalization_sensitive_accuracy=_safe_ratio(normalization_passed, len(normalization_results)),
+        dialogue_cases=len(dialogue_results),
+        dialogue_passed=dialogue_passed,
+        dialogue_accuracy=_safe_ratio(dialogue_passed, len(dialogue_results)),
+        clarification_cases=len(clarification_results),
+        clarification_success_rate=_safe_ratio(clarification_successes, len(clarification_results)),
+        followup_resolution_rate=_safe_ratio(followup_resolved, len(followup_results)),
+        false_clarifications=false_clarifications,
     )
 
 
@@ -569,13 +770,14 @@ def render_markdown_summary(summary_payload: dict[str, Any]) -> str:
         f"Generated at: `{summary_payload['generated_at']}`",
         f"Base URL: `{summary_payload['base_url']}`",
         "",
-        "| Dataset | Total | Passed | Accuracy | Matched Acc | Escalation Acc | False Escalations | False Matches | Top-3 Hit Rate | Normalization Acc |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Dataset | Total | Passed | Accuracy | Matched Acc | Escalation Acc | Dialogue Acc | Clarification Success | Follow-up Resolution | False Clarifications | Top-3 Hit Rate | Normalization Acc |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
         lines.append(
             "| {dataset} | {total} | {passed} | {accuracy} | {matched_accuracy} | "
-            "{escalation_accuracy} | {false_escalations} | {false_matches} | {top_3_hit_rate} | "
+            "{escalation_accuracy} | {dialogue_accuracy} | {clarification_success_rate} | "
+            "{followup_resolution_rate} | {false_clarifications} | {top_3_hit_rate} | "
             "{normalization_accuracy} |".format(
                 dataset=row["dataset_name"],
                 total=row["total_cases"],
@@ -583,8 +785,10 @@ def render_markdown_summary(summary_payload: dict[str, Any]) -> str:
                 accuracy=_format_ratio(row["accuracy"]),
                 matched_accuracy=_format_ratio(row["matched_accuracy"]),
                 escalation_accuracy=_format_ratio(row["escalation_accuracy"]),
-                false_escalations=row["false_escalations"],
-                false_matches=row["false_matches"],
+                dialogue_accuracy=_format_ratio(row["dialogue_accuracy"]),
+                clarification_success_rate=_format_ratio(row["clarification_success_rate"]),
+                followup_resolution_rate=_format_ratio(row["followup_resolution_rate"]),
+                false_clarifications=row["false_clarifications"],
                 top_3_hit_rate=_format_ratio(row["top_3_hit_rate"]),
                 normalization_accuracy=_format_ratio(row["normalization_sensitive_accuracy"]),
             )
@@ -606,7 +810,10 @@ def print_eval_summary(report: DatasetReport) -> None:
     print(
         "total={total} passed={passed} accuracy={accuracy} matched_accuracy={matched_accuracy} "
         "escalation_accuracy={escalation_accuracy} false_escalations={false_escalations} "
-        "false_matches={false_matches} top_3_hit_rate={top_3_hit_rate} "
+        "false_matches={false_matches} dialogue_accuracy={dialogue_accuracy} "
+        "clarification_success_rate={clarification_success_rate} "
+        "followup_resolution_rate={followup_resolution_rate} "
+        "false_clarifications={false_clarifications} top_3_hit_rate={top_3_hit_rate} "
         "normalization_accuracy={normalization_accuracy}".format(
             total=metrics.total_cases,
             passed=metrics.passed_cases,
@@ -615,6 +822,10 @@ def print_eval_summary(report: DatasetReport) -> None:
             escalation_accuracy=_format_ratio(metrics.escalation_accuracy),
             false_escalations=metrics.false_escalations,
             false_matches=metrics.false_matches,
+            dialogue_accuracy=_format_ratio(metrics.dialogue_accuracy),
+            clarification_success_rate=_format_ratio(metrics.clarification_success_rate),
+            followup_resolution_rate=_format_ratio(metrics.followup_resolution_rate),
+            false_clarifications=metrics.false_clarifications,
             top_3_hit_rate=_format_ratio(metrics.top_3_hit_rate),
             normalization_accuracy=_format_ratio(metrics.normalization_sensitive_accuracy),
         )
@@ -734,7 +945,10 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "total={total} passed={passed} accuracy={accuracy} matched_accuracy={matched_accuracy} "
         "escalation_accuracy={escalation_accuracy} false_escalations={false_escalations} "
-        "false_matches={false_matches} top_3_hit_rate={top_3_hit_rate} "
+        "false_matches={false_matches} dialogue_accuracy={dialogue_accuracy} "
+        "clarification_success_rate={clarification_success_rate} "
+        "followup_resolution_rate={followup_resolution_rate} "
+        "false_clarifications={false_clarifications} top_3_hit_rate={top_3_hit_rate} "
         "normalization_accuracy={normalization_accuracy}".format(
             total=combined_metrics.total_cases,
             passed=combined_metrics.passed_cases,
@@ -743,6 +957,10 @@ def main(argv: list[str] | None = None) -> int:
             escalation_accuracy=_format_ratio(combined_metrics.escalation_accuracy),
             false_escalations=combined_metrics.false_escalations,
             false_matches=combined_metrics.false_matches,
+            dialogue_accuracy=_format_ratio(combined_metrics.dialogue_accuracy),
+            clarification_success_rate=_format_ratio(combined_metrics.clarification_success_rate),
+            followup_resolution_rate=_format_ratio(combined_metrics.followup_resolution_rate),
+            false_clarifications=combined_metrics.false_clarifications,
             top_3_hit_rate=_format_ratio(combined_metrics.top_3_hit_rate),
             normalization_accuracy=_format_ratio(combined_metrics.normalization_sensitive_accuracy),
         )
@@ -767,7 +985,7 @@ def _parse_expected_faq_id(
     faq_lookup: dict[str, int],
     question: str,
 ) -> int | None:
-    if expected_status == "escalated":
+    if expected_status in {"escalated", "clarification_required"}:
         return None
 
     parsed_id = _optional_int(raw_value)
@@ -785,6 +1003,27 @@ def _parse_expected_faq_id(
     )
 
 
+def _parse_conversation(raw_value: Any) -> tuple[ConversationTurn, ...] | None:
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, list) or not raw_value:
+        raise EvalError(f"Eval conversation must be a non-empty list: {raw_value}")
+
+    turns: list[ConversationTurn] = []
+    for item in raw_value:
+        if not isinstance(item, dict):
+            raise EvalError(f"Eval conversation turn must be an object: {item}")
+        role = _optional_text(item.get("role"))
+        text = _optional_text(item.get("text"))
+        if role not in {"user", "assistant"} or not text:
+            raise EvalError(f"Eval conversation turn is invalid: {item}")
+        turns.append(ConversationTurn(role=role, text=text))
+
+    if turns[0].role != "user":
+        raise EvalError("Eval conversation must start with a user turn.")
+    return tuple(turns)
+
+
 def _is_top_3_hit(result: CaseResult) -> bool:
     if result.expected_status != "matched" or result.expected_faq_id is None:
         return False
@@ -793,6 +1032,33 @@ def _is_top_3_hit(result: CaseResult) -> bool:
         for item in result.top_matches[:3]
         if isinstance(item, dict)
     }
+
+
+def _build_dialogue_debug(
+    api_client: ApiClientProtocol,
+    conversation: tuple[ConversationTurn, ...],
+) -> dict[str, Any]:
+    reset_payload = api_client.reset_conversation()
+    conversation_id = _optional_text(reset_payload.get("conversation_id"))
+    if not conversation_id:
+        raise EvalError("Reset conversation response is missing conversation_id.")
+
+    final_user_turn_index = max(index for index, turn in enumerate(conversation) if turn.role == "user")
+    final_user_question = conversation[final_user_turn_index].text
+
+    for turn in conversation[:final_user_turn_index]:
+        if turn.role == "user":
+            api_client.query_chat(turn.text, conversation_id=conversation_id)
+
+    return api_client.retrieval_debug(final_user_question, conversation_id=conversation_id)
+
+
+def _text_matches_expected(actual_text: str, expected_text: str) -> bool:
+    actual = actual_text.strip().casefold()
+    expected = expected_text.strip().casefold()
+    if not actual or not expected:
+        return False
+    return actual == expected or expected in actual or actual in expected
 
 
 def _safe_ratio(numerator: int, denominator: int) -> float | None:

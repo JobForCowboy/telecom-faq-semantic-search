@@ -5,6 +5,8 @@ def test_normalize_seed_entry_promotes_canonical_question_into_variants() -> Non
     entry = normalize_seed_entry(
         {
             "canonical_question": "Почему не работает домашний интернет?",
+            "intent_tag": "home_internet",
+            "intent_label": "Домашний интернет",
             "answer": "Проверьте роутер.",
             "variants": [
                 "У меня пропал домашний интернет",
@@ -14,6 +16,8 @@ def test_normalize_seed_entry_promotes_canonical_question_into_variants() -> Non
     )
 
     assert entry["canonical_question"] == "Почему не работает домашний интернет?"
+    assert entry["intent_tag"] == "home_internet"
+    assert entry["intent_label"] == "Домашний интернет"
     assert entry["variants"] == [
         "Почему не работает домашний интернет?",
         "У меня пропал домашний интернет",

@@ -8,7 +8,9 @@ const emptyForm = {
   canonical_question: "",
   answer: "",
   variants_text: "",
-  is_active: true
+  is_active: true,
+  intent_tag: "",
+  intent_label: ""
 };
 
 function formatDateTime(value: string | null) {
@@ -93,7 +95,9 @@ export function AdminDashboard() {
       canonical_question: faq.canonical_question,
       answer: faq.answer,
       variants_text: faq.variants.join("\n"),
-      is_active: faq.is_active
+      is_active: faq.is_active,
+      intent_tag: faq.intent_tag ?? "",
+      intent_label: faq.intent_label ?? ""
     });
     setIsModalOpen(true);
   };
@@ -117,7 +121,9 @@ export function AdminDashboard() {
             .split("\n")
             .map((item) => item.trim())
             .filter(Boolean),
-          is_active: form.is_active
+          is_active: form.is_active,
+          intent_tag: form.intent_tag || null,
+          intent_label: form.intent_label || null
         };
         if (editingFaqId === null) {
           await createFaq(payload);
@@ -207,6 +213,7 @@ export function AdminDashboard() {
                 <th>Канонический вопрос</th>
                 <th>Варианты</th>
                 <th>Ответ</th>
+                <th>Intent</th>
                 <th>Статус</th>
                 <th>Updated</th>
                 <th>Действия</th>
@@ -215,7 +222,7 @@ export function AdminDashboard() {
             <tbody>
               {faqs.length === 0 ? (
                 <tr>
-                  <td className="emptyTable" colSpan={7}>
+                  <td className="emptyTable" colSpan={8}>
                     FAQ пока пуст. Добавьте первую запись через кнопку сверху.
                   </td>
                 </tr>
@@ -229,6 +236,12 @@ export function AdminDashboard() {
                     </td>
                     <td>
                       <div className="previewCell">{trimPreview(faq.answer)}</div>
+                    </td>
+                    <td>
+                      <div className="previewCell">
+                        {faq.intent_label ?? "—"}
+                        {faq.intent_tag ? ` · ${faq.intent_tag}` : ""}
+                      </div>
                     </td>
                     <td>
                       <span
@@ -330,6 +343,36 @@ export function AdminDashboard() {
                 placeholder="Готовый ответ"
                 rows={7}
                 value={form.answer}
+              />
+
+              <label className="fieldLabel" htmlFor="faq-intent-label">
+                Intent label
+              </label>
+              <input
+                id="faq-intent-label"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    intent_label: event.target.value
+                  }))
+                }
+                placeholder="Например: Домашний интернет"
+                value={form.intent_label}
+              />
+
+              <label className="fieldLabel" htmlFor="faq-intent-tag">
+                Intent tag
+              </label>
+              <input
+                id="faq-intent-tag"
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    intent_tag: event.target.value
+                  }))
+                }
+                placeholder="Например: home_internet"
+                value={form.intent_tag}
               />
 
               <label className="fieldLabel" htmlFor="faq-variants">

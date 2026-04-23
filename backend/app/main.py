@@ -9,11 +9,13 @@ from .config import get_settings
 from .db import SessionLocal, init_db
 from .embeddings import EmbedderManager, EmbedderUnavailableError
 from .schemas import HealthResponse
+from .services.conversations import InMemoryConversationStore
 from .seed import bootstrap_faqs, load_seed_dataset
 
 
 settings = get_settings()
 embedder_manager = EmbedderManager(settings)
+conversation_store = InMemoryConversationStore(max_messages=settings.conversation_max_messages)
 
 
 @asynccontextmanager
@@ -24,6 +26,7 @@ async def lifespan(app: FastAPI):
         with SessionLocal() as session:
             bootstrap_faqs(session, embedder_manager, load_seed_dataset())
     app.state.embedder_manager = embedder_manager
+    app.state.conversation_store = conversation_store
     yield
 
 
